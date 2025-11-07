@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html>
+<head>
+    
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/css/bootstrap.min.css"/>
+    <link rel="stylesheet" href="https://netdna.bootstrapcdn.com/bootstrap/3.0.0/css/bootstrap-glyphicons.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.2.0/css/all.min.css"/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/python-visualization/folium/folium/templates/leaflet.awesome.rotate.min.css"/>
+    
+            <meta name="viewport" content="width=device-width,
+                initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+            <style>
+                #map_c7c3e696b227f443fc04f604b37d549f {
+                    position: relative;
+                    width: 100.0%;
+                    height: 100.0%;
+                    left: 0.0%;
+                    top: 0.0%;
+                }
+                .leaflet-container { font-size: 1rem; }
+            </style>
+
+            <style>html, body {
+                width: 100%;
+                height: 100%;
+                margin: 0;
+                padding: 0;
+            }
+            </style>
+
+            <style>#map {
+                position:absolute;
+                top:0;
+                bottom:0;
+                right:0;
+                left:0;
+                }
+            </style>
+
+            <script>
+                L_NO_TOUCH = false;
+                L_DISABLE_3D = false;
+            </script>
+
+        
+</head>
+<body>
+    
+    
+            <div class="folium-map" id="map_c7c3e696b227f443fc04f604b37d549f" ></div>
+        
+</body>
+<script>
+    
+    
+            var map_c7c3e696b227f443fc04f604b37d549f = L.map(
+                "map_c7c3e696b227f443fc04f604b37d549f",
+                {
+                    center: [48.8584, 2.2945],
+                    crs: L.CRS.EPSG3857,
+                    ...{
+  "zoom": 12,
+  "zoomControl": true,
+  "preferCanvas": false,
+}
+
+                }
+            );
+
+            
+
+        
+    
+            var tile_layer_6d67dbde02dd822033204e2e7e6a9559 = L.tileLayer(
+                "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+                {
+  "minZoom": 0,
+  "maxZoom": 19,
+  "maxNativeZoom": 19,
+  "noWrap": false,
+  "attribution": "\u0026copy; \u003ca href=\"https://www.openstreetmap.org/copyright\"\u003eOpenStreetMap\u003c/a\u003e contributors",
+  "subdomains": "abc",
+  "detectRetina": false,
+  "tms": false,
+  "opacity": 1,
+}
+
+            );
+        
+    
+            tile_layer_6d67dbde02dd822033204e2e7e6a9559.addTo(map_c7c3e696b227f443fc04f604b37d549f);
+        
+    
+            var marker_12845257c8e147b43fbc2d5bd232f4bb = L.marker(
+                [48.8606, 2.3376],
+                {
+}
+            ).addTo(map_c7c3e696b227f443fc04f604b37d549f);
+        
+    
+        var popup_425569d67c38ab1c11409062ba7c953c = L.popup({
+  "maxWidth": "100%",
+});
+
+        
+            
+                var html_a8eb1ec7dcc85574715e4e894e478e10 = $(`<div id="html_a8eb1ec7dcc85574715e4e894e478e10" style="width: 100.0%; height: 100.0%;">Louvre Museum</div>`)[0];
+                popup_425569d67c38ab1c11409062ba7c953c.setContent(html_a8eb1ec7dcc85574715e4e894e478e10);
+            
+        
+
+        marker_12845257c8e147b43fbc2d5bd232f4bb.bindPopup(popup_425569d67c38ab1c11409062ba7c953c)
+        ;
+
+        
+    
+    
+            var marker_4848488d5402f37ccfdcc67de7620460 = L.marker(
+                [48.853, 2.3499],
+                {
+}
+            ).addTo(map_c7c3e696b227f443fc04f604b37d549f);
+        
+    
+        var popup_9507d40a5e30238a1e2ef3cfc133d818 = L.popup({
+  "maxWidth": "100%",
+});
+
+        
+            
+                var html_db984c72d46e465d8f276be569d9f705 = $(`<div id="html_db984c72d46e465d8f276be569d9f705" style="width: 100.0%; height: 100.0%;">Notre-Dame Cathedral</div>`)[0];
+                popup_9507d40a5e30238a1e2ef3cfc133d818.setContent(html_db984c72d46e465d8f276be569d9f705);
+            
+        
+
+        marker_4848488d5402f37ccfdcc67de7620460.bindPopup(popup_9507d40a5e30238a1e2ef3cfc133d818)
+        ;
+
+        
+    
+</script>
+</html>

@@ -11,14 +11,12 @@ import matplotlib.pyplot as plt
 # You can specify a city, a neighborhood, or even a bounding box.
 place_name = "Kamppi, Helsinki, Finland" 
 
-# 2. Download the street network data for the specified place
-# This fetches the OSM street network as a NetworkX MultiDiGraph object.
+# 2. This fetches the OSM street network as a NetworkX MultiDiGraph object.
 graph = ox.graph_from_place(place_name)
 
 # 3. Plot the street network with tight layout
 # This visualizes the downloaded street network using Matplotlib.
-fig, ax = ox.plot_graph(graph, show=False, close=False, 
-                        bbox_inches='tight', pad_inches=0.1)
+fig, ax = ox.plot_graph(graph, show=False, close=False)
 
 # Optional: Download and plot buildings
 area = ox.geocode_to_gdf(place_name)

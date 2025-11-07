@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Removed excessive white space around map visualization
+- Added tight layout settings for cleaner plot rendering
+- Hidden axes for more professional map appearance
+- Optimized plot margins and padding
+
 ## [1.0.0] - 2024-01-01
 
 ### Added

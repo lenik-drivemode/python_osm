@@ -31,5 +31,5 @@ def visualize_osm_network(place_name, network_type='drive', fig_height=8, fig_wi
         plt.show()
 
 if __name__ == "__main__":
-    visualize_osm_network("Manhattan, New York City, USA", network_type='drive', filepath="manhattan_walk_network.png")
+    visualize_osm_network("Manhattan, New York City, USA", network_type='drive', filepath="manhattan_drive_network.png")
     visualize_osm_network("Shinagawa, Tokyo, Japan", network_type='drive')

@@ -10,6 +10,8 @@ import geopandas as gpd
 from shapely.geometry import Point, LineString
 import xml.etree.ElementTree as ET
 import numpy as np
+import argparse
+import sys
 
 def parse_kml_coordinates(kml_file):
     """
@@ -171,18 +173,81 @@ def visualize_kml_simple(kml_file, filepath=None):
         print(f"Error with GeoPandas method: {e}")
         print("Try using the visualize_kml_on_osm function instead.")
 
-if __name__ == "__main__":
-    # Example usage
-    kml_filename = "example_track.kml"  # Replace with your KML file path
-    
-    # Method 1: Custom KML parser
-    visualize_kml_on_osm(
-        kml_file=kml_filename,
-        network_type='all',
-        track_color='blue',
-        track_width=2,
-        filepath="kml_track_visualization.png"
+def main():
+    """Main function to handle command line arguments and execute visualization."""
+    parser = argparse.ArgumentParser(
+        description='Visualize KML GPS tracks over OpenStreetMap data',
+        epilog='''
+Examples:
+  %(prog)s track.kml
+  %(prog)s track.kml -o output.png
+  %(prog)s track.kml --network-type all --color blue --width 4
+  %(prog)s track.kml --simple --output simple_track.png
+        ''',
+        formatter_class=argparse.RawDescriptionHelpFormatter
     )
     
-    # Method 2: GeoPandas (uncomment to try)
-    # visualize_kml_simple(kml_filename)
+    parser.add_argument('kml_file', 
+                       help='Path to the KML file containing GPS track data')
+    
+    parser.add_argument('-o', '--output', 
+                       help='Output file path for saving the visualization (PNG format)')
+    
+    parser.add_argument('--network-type', 
+                       choices=['drive', 'walk', 'bike', 'all', 'all_private'],
+                       default='drive',
+                       help='Type of OpenStreetMap network to download (default: drive)')
+    
+    parser.add_argument('--color', '--track-color',
+                       default='red',
+                       help='Color of the GPS track (default: red)')
+    
+    parser.add_argument('--width', '--track-width',
+                       type=int, default=3,
+                       help='Width of the GPS track line (default: 3)')
+    
+    parser.add_argument('--height', '--fig-height',
+                       type=int, default=12,
+                       help='Height of the plot figure (default: 12)')
+    
+    parser.add_argument('--width-fig', '--fig-width',
+                       type=int, default=12,
+                       help='Width of the plot figure (default: 12)')
+    
+    parser.add_argument('--simple',
+                       action='store_true',
+                       help='Use simple GeoPandas-based visualization method')
+    
+    parser.add_argument('--version',
+                       action='version',
+                       version='KML Visualizer 1.0.0')
+    
+    args = parser.parse_args()
+    
+    # Check if KML file exists
+    import os
+    if not os.path.exists(args.kml_file):
+        print(f"Error: KML file '{args.kml_file}' not found.")
+        sys.exit(1)
+    
+    # Choose visualization method based on arguments
+    if args.simple:
+        print(f"Using simple GeoPandas method for {args.kml_file}")
+        visualize_kml_simple(
+            kml_file=args.kml_file,
+            filepath=args.output
+        )
+    else:
+        print(f"Visualizing {args.kml_file} with OSMnx method")
+        visualize_kml_on_osm(
+            kml_file=args.kml_file,
+            network_type=args.network_type,
+            fig_height=args.height,
+            fig_width=args.width_fig,
+            track_color=args.color,
+            track_width=args.width,
+            filepath=args.output
+        )
+
+if __name__ == "__main__":
+    main()

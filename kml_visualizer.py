@@ -79,15 +79,15 @@ def visualize_kml_on_osm(kml_file, network_type='drive', fig_height=12, fig_widt
         lon_range = max_lon - min_lon
         padding = 0.1
         
-        bbox = (min_lat - lat_range * padding, 
-                max_lat + lat_range * padding,
-                min_lon - lon_range * padding, 
-                max_lon + lon_range * padding)
+        # Create bbox tuple (north, south, east, west)
+        north = max_lat + lat_range * padding
+        south = min_lat - lat_range * padding
+        east = max_lon + lon_range * padding
+        west = min_lon - lon_range * padding
         
         # Download OSM network for the bounding box
         print("Downloading OpenStreetMap data...")
-        G = ox.graph_from_bbox(bbox[1], bbox[0], bbox[3], bbox[2], 
-                              network_type=network_type)
+        G = ox.graph_from_bbox(north, south, east, west, network_type=network_type)
         
         # Create the plot
         fig, ax = ox.plot_graph(G, figsize=(fig_width, fig_height), 
@@ -147,11 +147,17 @@ def visualize_kml_simple(kml_file, filepath=None):
             print(f"No data found in {kml_file}")
             return
             
-        # Get bounds for OSM download
-        bounds = gdf.total_bounds  # [minx, miny, maxx, maxy]
+        # Get bounds for OSM download (minx, miny, maxx, maxy)
+        bounds = gdf.total_bounds
+        
+        # Convert to (north, south, east, west) for OSMnx
+        north = bounds[3]  # maxy
+        south = bounds[1]  # miny
+        east = bounds[2]   # maxx
+        west = bounds[0]   # minx
         
         # Download OSM network
-        G = ox.graph_from_bbox(bounds[3], bounds[1], bounds[2], bounds[0])
+        G = ox.graph_from_bbox(north, south, east, west)
         
         # Plot
         fig, ax = ox.plot_graph(G, show=False, close=False, 

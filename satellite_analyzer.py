@@ -1,17 +1,171 @@
 #!/usr/bin/env python3
 """
-This script reads a KML file containing GPS track data and creates
+This script reads KML or NMEA files containing GPS track data and creates
 graphs showing satellites in view and satellites in use over time.
 """
 
 import xml.etree.ElementTree as ET
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
-from datetime import datetime
+from datetime import datetime, date
 import argparse
 import sys
 import os
 import numpy as np
+import re
+
+def parse_nmea_satellite_data(nmea_file):
+    """
+    Parse satellite data from an NMEA file.
+    
+    Args:
+        nmea_file (str): Path to the NMEA file
+        
+    Returns:
+        tuple: (timestamps, satellites_in_view, satellites_in_use, coordinates)
+    """
+    try:
+        timestamps = []
+        satellites_in_view = []
+        satellites_in_use = []
+        coordinates = []
+        
+        current_date = None
+        current_time = None
+        current_sats_view = None
+        current_sats_use = None
+        current_lat = None
+        current_lon = None
+        
+        with open(nmea_file, 'r', encoding='utf-8', errors='ignore') as file:
+            for line_num, line in enumerate(file, 1):
+                line = line.strip()
+                if not line:
+                    continue
+                    
+                try:
+                    # Parse different NMEA sentence types
+                    if line.startswith('$GPGGA') or line.startswith('$GNGGA'):
+                        # GGA - Global Positioning System Fix Data
+                        parts = line.split(',')
+                        if len(parts) >= 8:
+                            time_str = parts[1]
+                            lat_str = parts[2]
+                            lat_dir = parts[3]
+                            lon_str = parts[4]
+                            lon_dir = parts[5]
+                            sats_used = parts[7]
+                            
+                            # Parse time (HHMMSS.SS)
+                            if time_str and len(time_str) >= 6:
+                                hours = int(time_str[:2])
+                                minutes = int(time_str[2:4])
+                                seconds = int(float(time_str[4:]))
+                                current_time = (hours, minutes, seconds)
+                            
+                            # Parse coordinates
+                            if lat_str and lon_str and lat_dir and lon_dir:
+                                # Convert DDMM.MMMM to decimal degrees
+                                lat_deg = int(float(lat_str) // 100)
+                                lat_min = float(lat_str) % 100
+                                current_lat = lat_deg + lat_min / 60.0
+                                if lat_dir == 'S':
+                                    current_lat = -current_lat
+                                    
+                                lon_deg = int(float(lon_str) // 100)
+                                lon_min = float(lon_str) % 100
+                                current_lon = lon_deg + lon_min / 60.0
+                                if lon_dir == 'W':
+                                    current_lon = -current_lon
+                            
+                            # Parse satellites in use
+                            if sats_used:
+                                try:
+                                    current_sats_use = int(sats_used)
+                                except ValueError:
+                                    pass
+                    
+                    elif line.startswith('$GPGSV') or line.startswith('$GNGSV'):
+                        # GSV - GPS Satellites in View
+                        parts = line.split(',')
+                        if len(parts) >= 4:
+                            total_msgs = parts[1]
+                            msg_num = parts[2]
+                            sats_in_view = parts[3]
+                            
+                            # Only process the first message to get total satellites
+                            if msg_num == '1' and sats_in_view:
+                                try:
+                                    current_sats_view = int(sats_in_view)
+                                except ValueError:
+                                    pass
+                    
+                    elif line.startswith('$GPRMC') or line.startswith('$GNRMC'):
+                        # RMC - Recommended Minimum Course
+                        parts = line.split(',')
+                        if len(parts) >= 10:
+                            time_str = parts[1]
+                            status = parts[2]
+                            date_str = parts[9]
+                            
+                            # Parse date (DDMMYY)
+                            if date_str and len(date_str) == 6:
+                                day = int(date_str[:2])
+                                month = int(date_str[2:4])
+                                year = 2000 + int(date_str[4:6])  # Assume 20xx
+                                current_date = date(year, month, day)
+                            
+                            # Parse time (HHMMSS.SS)
+                            if time_str and len(time_str) >= 6:
+                                hours = int(time_str[:2])
+                                minutes = int(time_str[2:4])
+                                seconds = int(float(time_str[4:]))
+                                current_time = (hours, minutes, seconds)
+                    
+                    # If we have complete data, record it
+                    if (current_date and current_time and 
+                        (current_sats_view is not None or current_sats_use is not None)):
+                        
+                        timestamp = datetime.combine(
+                            current_date, 
+                            datetime.min.time().replace(
+                                hour=current_time[0],
+                                minute=current_time[1],
+                                second=current_time[2]
+                            )
+                        )
+                        
+                        # Only add if we have new data
+                        if not timestamps or timestamp != timestamps[-1]:
+                            timestamps.append(timestamp)
+                            
+                            # Use last known values if current ones are None
+                            sats_view = current_sats_view if current_sats_view is not None else (satellites_in_view[-1] if satellites_in_view else 0)
+                            sats_use = current_sats_use if current_sats_use is not None else (satellites_in_use[-1] if satellites_in_use else 0)
+                            
+                            satellites_in_view.append(sats_view)
+                            satellites_in_use.append(sats_use)
+                            
+                            if current_lat is not None and current_lon is not None:
+                                coordinates.append((current_lon, current_lat))
+                        
+                        # Reset current satellite values after recording
+                        current_sats_view = None
+                        current_sats_use = None
+                
+                except (ValueError, IndexError) as e:
+                    print(f"Warning: Error parsing line {line_num}: {e}")
+                    continue
+        
+        print(f"Parsed {len(timestamps)} valid NMEA records")
+        return timestamps, satellites_in_view, satellites_in_use, coordinates
+        
+    except FileNotFoundError:
+        print(f"Error: NMEA file '{nmea_file}' not found.")
+        return [], [], [], []
+    except Exception as e:
+        print(f"Error reading NMEA file: {e}")
+        return [], [], [], []
 
 def parse_kml_satellite_data(kml_file):
     """
@@ -140,6 +294,35 @@ def parse_kml_satellite_data(kml_file):
     except Exception as e:
         print(f"Unexpected error: {e}")
         return [], [], [], []
+
+def detect_file_type(filepath):
+    """
+    Detect if the file is KML or NMEA based on content.
+    
+    Args:
+        filepath (str): Path to the file
+        
+    Returns:
+        str: 'kml', 'nmea', or 'unknown'
+    """
+    try:
+        with open(filepath, 'r', encoding='utf-8', errors='ignore') as file:
+            # Read first few lines
+            lines = [file.readline().strip() for _ in range(10)]
+            content = ' '.join(lines).lower()
+            
+            # Check for KML markers
+            if '<?xml' in content or '<kml' in content or 'xmlns' in content:
+                return 'kml'
+            
+            # Check for NMEA markers
+            if any(line.startswith('$GP') or line.startswith('$GN') for line in lines):
+                return 'nmea'
+            
+            return 'unknown'
+    
+    except Exception:
+        return 'unknown'
 
 def plot_satellite_data(timestamps, satellites_in_view, satellites_in_use, 
                        title="GPS Satellite Data", filepath=None):
@@ -273,21 +456,27 @@ def create_detailed_analysis(timestamps, satellites_in_view, satellites_in_use, 
 def main():
     """Main function to handle command line arguments and execute visualization."""
     parser = argparse.ArgumentParser(
-        description='Analyze and visualize GPS satellite data from KML files',
+        description='Analyze and visualize GPS satellite data from KML or NMEA files',
         epilog='''
 Examples:
   %(prog)s track.kml
-  %(prog)s track.kml -o satellite_plot.png
+  %(prog)s gps_log.nmea -o satellite_plot.png
   %(prog)s track.kml --detailed --output detailed_analysis.png
+  %(prog)s gps_data.txt --format nmea --title "NMEA Satellite Analysis"
         ''',
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
     
-    parser.add_argument('kml_file', 
-                       help='Path to the KML file containing GPS track data')
+    parser.add_argument('input_file', 
+                       help='Path to the KML or NMEA file containing GPS track data')
     
     parser.add_argument('-o', '--output', 
                        help='Output file path for saving the visualization (PNG format)')
+    
+    parser.add_argument('--format',
+                       choices=['auto', 'kml', 'nmea'],
+                       default='auto',
+                       help='Input file format (default: auto-detect)')
     
     parser.add_argument('--detailed',
                        action='store_true',
@@ -299,22 +488,39 @@ Examples:
     
     parser.add_argument('--version',
                        action='version',
-                       version='KML Satellite Analyzer 1.0.0')
+                       version='GPS Satellite Analyzer 2.0.0')
     
     args = parser.parse_args()
     
-    # Check if KML file exists
-    if not os.path.exists(args.kml_file):
-        print(f"Error: KML file '{args.kml_file}' not found.")
+    # Check if input file exists
+    if not os.path.exists(args.input_file):
+        print(f"Error: Input file '{args.input_file}' not found.")
         sys.exit(1)
     
-    print(f"Analyzing satellite data from {args.kml_file}")
+    # Detect file format
+    if args.format == 'auto':
+        file_type = detect_file_type(args.input_file)
+        if file_type == 'unknown':
+            print("Warning: Could not auto-detect file format. Trying KML first, then NMEA...")
+            file_type = 'kml'  # Default fallback
+    else:
+        file_type = args.format
     
-    # Parse the KML file
-    timestamps, satellites_in_view, satellites_in_use, coordinates = parse_kml_satellite_data(args.kml_file)
+    print(f"Analyzing satellite data from {args.input_file} (format: {file_type})")
+    
+    # Parse the input file based on format
+    if file_type == 'nmea':
+        timestamps, satellites_in_view, satellites_in_use, coordinates = parse_nmea_satellite_data(args.input_file)
+    else:  # kml or fallback
+        timestamps, satellites_in_view, satellites_in_use, coordinates = parse_kml_satellite_data(args.input_file)
+        
+        # If KML parsing failed and format was auto, try NMEA
+        if not timestamps and args.format == 'auto':
+            print("KML parsing failed, trying NMEA format...")
+            timestamps, satellites_in_view, satellites_in_use, coordinates = parse_nmea_satellite_data(args.input_file)
     
     if not timestamps:
-        print("No timestamp data found in KML file.")
+        print("No timestamp data found in input file.")
         sys.exit(1)
     
     print(f"Found {len(timestamps)} data points")

@@ -87,7 +87,7 @@ def visualize_kml_on_osm(kml_file, network_type='drive', fig_height=12, fig_widt
         
         # Download OSM network for the bounding box
         print("Downloading OpenStreetMap data...")
-        G = ox.graph_from_bbox(north, south, east, west, network_type=network_type)
+        G = ox.graph_from_bbox((north, south, east, west), network_type=network_type)
         
         # Create the plot
         fig, ax = ox.plot_graph(G, figsize=(fig_width, fig_height), 
@@ -157,7 +157,7 @@ def visualize_kml_simple(kml_file, filepath=None):
         west = bounds[0]   # minx
         
         # Download OSM network
-        G = ox.graph_from_bbox(north, south, east, west)
+        G = ox.graph_from_bbox((north, south, east, west))
         
         # Plot
         fig, ax = ox.plot_graph(G, show=False, close=False, 

@@ -7,7 +7,7 @@ graphs showing satellites in view and satellites in use over time.
 import xml.etree.ElementTree as ET
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 import argparse
 import sys
 import os
@@ -484,6 +484,62 @@ def parse_kml_satellite_data(kml_file):
         print(f"Unexpected error: {e}")
         return [], [], [], []
 
+def filter_data_by_date(timestamps, satellites_in_view, satellites_in_use, coordinates, filter_date):
+    """
+    Filter data by a specific date.
+    
+    Args:
+        timestamps (list): List of datetime objects
+        satellites_in_view (list): Number of satellites in view
+        satellites_in_use (list): Number of satellites in use
+        coordinates (list): List of coordinate tuples
+        filter_date (date): Date to filter by
+        
+    Returns:
+        tuple: Filtered (timestamps, satellites_in_view, satellites_in_use, coordinates)
+    """
+    if not timestamps:
+        return timestamps, satellites_in_view, satellites_in_use, coordinates
+    
+    filtered_timestamps = []
+    filtered_sats_view = []
+    filtered_sats_use = []
+    filtered_coords = []
+    
+    for i, ts in enumerate(timestamps):
+        if ts.date() == filter_date:
+            filtered_timestamps.append(ts)
+            if i < len(satellites_in_view):
+                filtered_sats_view.append(satellites_in_view[i])
+            if i < len(satellites_in_use):
+                filtered_sats_use.append(satellites_in_use[i])
+            if i < len(coordinates):
+                filtered_coords.append(coordinates[i])
+    
+    print(f"Filtered to {len(filtered_timestamps)} data points for date {filter_date}")
+    return filtered_timestamps, filtered_sats_view, filtered_sats_use, filtered_coords
+
+def parse_date_argument(date_str):
+    """
+    Parse date argument, supporting 'today' and YYYY-MM-DD format.
+    
+    Args:
+        date_str (str): Date string ('today' or 'YYYY-MM-DD')
+        
+    Returns:
+        date: Parsed date object
+    """
+    if date_str.lower() == 'today':
+        return date.today()
+    
+    try:
+        # Parse YYYY-MM-DD format
+        return datetime.strptime(date_str, '%Y-%m-%d').date()
+    except ValueError:
+        raise argparse.ArgumentTypeError(
+            f"Invalid date format: '{date_str}'. Use 'today' or 'YYYY-MM-DD' format."
+        )
+
 def detect_file_type(filepath):
     """
     Detect if the input is KML file, NMEA file, or Android logd folder.
@@ -667,6 +723,8 @@ Examples:
   %(prog)s track.kml
   %(prog)s gps_log.nmea -o satellite_plot.png
   %(prog)s logd/ --format android_logs --detailed
+  %(prog)s logd/ --date today --output today_analysis.png
+  %(prog)s logd/ --date 2025-12-17 --detailed
   %(prog)s track.kml --detailed --output detailed_analysis.png
   %(prog)s gps_data.txt --format nmea --title "NMEA Satellite Analysis"
         ''',
@@ -691,6 +749,10 @@ Examples:
     parser.add_argument('--title',
                        default='GPS Satellite Data',
                        help='Title for the plot (default: GPS Satellite Data)')
+    
+    parser.add_argument('--date',
+                       type=parse_date_argument,
+                       help='Filter data by date. Use "today" or YYYY-MM-DD format (e.g., 2025-12-17)')
     
     parser.add_argument('--version',
                        action='version',
@@ -734,6 +796,17 @@ Examples:
     if not timestamps:
         print("No timestamp data found in input.")
         sys.exit(1)
+    
+    # Apply date filtering if specified
+    if args.date:
+        print(f"Filtering data for date: {args.date}")
+        timestamps, satellites_in_view, satellites_in_use, coordinates = filter_data_by_date(
+            timestamps, satellites_in_view, satellites_in_use, coordinates, args.date
+        )
+        
+        if not timestamps:
+            print(f"No data found for date {args.date}")
+            sys.exit(1)
     
     print(f"Found {len(timestamps)} data points")
     print(f"Time range: {timestamps[0]} to {timestamps[-1]}")

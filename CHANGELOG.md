@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Android log timestamp pattern recognition and parsing
 - Regex-based NMEA sentence extraction from log files
 - Support for various Android log timestamp formats
+- Date filtering functionality with `--date` command line option
+- Support for "today" keyword and YYYY-MM-DD date format filtering
+- `filter_data_by_date()` function for filtering satellite data by specific dates
+- `parse_date_argument()` function for robust date parsing
 - NMEA file format support in `satellite_analyzer.py`
 - `parse_nmea_satellite_data()` function for extracting satellite data from NMEA files
 - Support for NMEA sentence types: GGA, GSV, and RMC
@@ -23,7 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Date and time parsing from Android log timestamps
 - Robust NMEA parsing with error handling for malformed sentences
 - Auto-fallback parsing sequence: KML → NMEA → Android logs
-- Enhanced command line examples for Android log usage
+- Enhanced command line examples for Android log usage and date filtering
 
 ### Changed
 - Updated version to 2.1.0 to reflect Android log support addition

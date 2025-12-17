@@ -13,6 +13,195 @@ import sys
 import os
 import numpy as np
 import re
+import glob
+
+def parse_android_log_satellite_data(logd_folder):
+    """
+    Parse satellite data from Android log files containing NMEA messages.
+    
+    Args:
+        logd_folder (str): Path to the logd folder containing Android log files
+        
+    Returns:
+        tuple: (timestamps, satellites_in_view, satellites_in_use, coordinates)
+    """
+    try:
+        timestamps = []
+        satellites_in_view = []
+        satellites_in_use = []
+        coordinates = []
+        
+        # Pattern to match NMEA sentences in Android logs
+        nmea_pattern = re.compile(r'\$G[PN][A-Z]{3}[^\r\n]*')
+        
+        # Android log timestamp patterns
+        timestamp_patterns = [
+            # Common Android logcat format: MM-DD HH:MM:SS.mmm
+            re.compile(r'(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})\.(\d{3})'),
+            # Alternative format: YYYY-MM-DD HH:MM:SS.mmm
+            re.compile(r'(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})\.(\d{3})'),
+            # Simple timestamp: HH:MM:SS.mmm
+            re.compile(r'(\d{2}):(\d{2}):(\d{2})\.(\d{3})'),
+        ]
+        
+        current_date = datetime.now().date()  # Default to current date
+        current_sats_view = None
+        current_sats_use = None
+        current_lat = None
+        current_lon = None
+        
+        # Get all log files in the logd folder
+        log_files = glob.glob(os.path.join(logd_folder, '*'))
+        log_files = [f for f in log_files if os.path.isfile(f)]
+        
+        if not log_files:
+            print(f"No log files found in {logd_folder}")
+            return [], [], [], []
+        
+        print(f"Processing {len(log_files)} log files from {logd_folder}")
+        
+        for log_file in sorted(log_files):
+            print(f"Processing {os.path.basename(log_file)}...")
+            
+            try:
+                with open(log_file, 'r', encoding='utf-8', errors='ignore') as file:
+                    for line_num, line in enumerate(file, 1):
+                        line = line.strip()
+                        if not line:
+                            continue
+                        
+                        # Look for NMEA sentences in the log line
+                        nmea_matches = nmea_pattern.findall(line)
+                        if not nmea_matches:
+                            continue
+                        
+                        # Try to extract timestamp from the log line
+                        log_timestamp = None
+                        for pattern in timestamp_patterns:
+                            match = pattern.search(line)
+                            if match:
+                                groups = match.groups()
+                                try:
+                                    if len(groups) == 6 and len(groups[0]) == 2:  # MM-DD format
+                                        month, day, hour, minute, second, millisec = groups
+                                        log_timestamp = datetime.combine(
+                                            current_date.replace(month=int(month), day=int(day)),
+                                            datetime.min.time().replace(
+                                                hour=int(hour), minute=int(minute), 
+                                                second=int(second), microsecond=int(millisec)*1000
+                                            )
+                                        )
+                                    elif len(groups) == 7:  # YYYY-MM-DD format
+                                        year, month, day, hour, minute, second, millisec = groups
+                                        log_timestamp = datetime(
+                                            int(year), int(month), int(day),
+                                            int(hour), int(minute), int(second), int(millisec)*1000
+                                        )
+                                    elif len(groups) == 4:  # HH:MM:SS format
+                                        hour, minute, second, millisec = groups
+                                        log_timestamp = datetime.combine(
+                                            current_date,
+                                            datetime.min.time().replace(
+                                                hour=int(hour), minute=int(minute), 
+                                                second=int(second), microsecond=int(millisec)*1000
+                                            )
+                                        )
+                                except ValueError:
+                                    continue
+                                break
+                        
+                        # Process each NMEA sentence found in the line
+                        for nmea_sentence in nmea_matches:
+                            try:
+                                nmea_sentence = nmea_sentence.strip()
+                                
+                                if nmea_sentence.startswith('$GPGGA') or nmea_sentence.startswith('$GNGGA'):
+                                    # GGA - Global Positioning System Fix Data
+                                    parts = nmea_sentence.split(',')
+                                    if len(parts) >= 8:
+                                        lat_str = parts[2]
+                                        lat_dir = parts[3]
+                                        lon_str = parts[4]
+                                        lon_dir = parts[5]
+                                        sats_used = parts[7]
+                                        
+                                        # Parse coordinates
+                                        if lat_str and lon_str and lat_dir and lon_dir:
+                                            try:
+                                                # Convert DDMM.MMMM to decimal degrees
+                                                lat_deg = int(float(lat_str) // 100)
+                                                lat_min = float(lat_str) % 100
+                                                current_lat = lat_deg + lat_min / 60.0
+                                                if lat_dir == 'S':
+                                                    current_lat = -current_lat
+                                                    
+                                                lon_deg = int(float(lon_str) // 100)
+                                                lon_min = float(lon_str) % 100
+                                                current_lon = lon_deg + lon_min / 60.0
+                                                if lon_dir == 'W':
+                                                    current_lon = -current_lon
+                                            except ValueError:
+                                                pass
+                                        
+                                        # Parse satellites in use
+                                        if sats_used:
+                                            try:
+                                                current_sats_use = int(sats_used)
+                                            except ValueError:
+                                                pass
+                                
+                                elif nmea_sentence.startswith('$GPGSV') or nmea_sentence.startswith('$GNGSV'):
+                                    # GSV - GPS Satellites in View
+                                    parts = nmea_sentence.split(',')
+                                    if len(parts) >= 4:
+                                        total_msgs = parts[1]
+                                        msg_num = parts[2]
+                                        sats_in_view = parts[3]
+                                        
+                                        # Only process the first message to get total satellites
+                                        if msg_num == '1' and sats_in_view:
+                                            try:
+                                                current_sats_view = int(sats_in_view)
+                                            except ValueError:
+                                                pass
+                                
+                                # If we have complete data and a timestamp, record it
+                                if (log_timestamp and 
+                                    (current_sats_view is not None or current_sats_use is not None)):
+                                    
+                                    # Only add if we have new data or significant time difference
+                                    if (not timestamps or 
+                                        abs((log_timestamp - timestamps[-1]).total_seconds()) > 1):
+                                        
+                                        timestamps.append(log_timestamp)
+                                        
+                                        # Use last known values if current ones are None
+                                        sats_view = current_sats_view if current_sats_view is not None else (satellites_in_view[-1] if satellites_in_view else 0)
+                                        sats_use = current_sats_use if current_sats_use is not None else (satellites_in_use[-1] if satellites_in_use else 0)
+                                        
+                                        satellites_in_view.append(sats_view)
+                                        satellites_in_use.append(sats_use)
+                                        
+                                        if current_lat is not None and current_lon is not None:
+                                            coordinates.append((current_lon, current_lat))
+                                    
+                                    # Reset current satellite values after recording
+                                    current_sats_view = None
+                                    current_sats_use = None
+                            
+                            except Exception as e:
+                                continue  # Skip malformed NMEA sentences
+            
+            except Exception as e:
+                print(f"Warning: Error processing {log_file}: {e}")
+                continue
+        
+        print(f"Parsed {len(timestamps)} valid records from Android logs")
+        return timestamps, satellites_in_view, satellites_in_use, coordinates
+        
+    except Exception as e:
+        print(f"Error processing Android logs: {e}")
+        return [], [], [], []
 
 def parse_nmea_satellite_data(nmea_file):
     """
@@ -297,15 +486,26 @@ def parse_kml_satellite_data(kml_file):
 
 def detect_file_type(filepath):
     """
-    Detect if the file is KML or NMEA based on content.
+    Detect if the input is KML file, NMEA file, or Android logd folder.
     
     Args:
-        filepath (str): Path to the file
+        filepath (str): Path to the file or folder
         
     Returns:
-        str: 'kml', 'nmea', or 'unknown'
+        str: 'kml', 'nmea', 'android_logs', or 'unknown'
     """
     try:
+        # Check if it's a directory (potentially Android logs)
+        if os.path.isdir(filepath):
+            # Check if it contains log files or is named 'logd'
+            if os.path.basename(filepath).lower() == 'logd' or any(
+                os.path.isfile(os.path.join(filepath, f)) 
+                for f in os.listdir(filepath)
+            ):
+                return 'android_logs'
+            return 'unknown'
+        
+        # File analysis
         with open(filepath, 'r', encoding='utf-8', errors='ignore') as file:
             # Read first few lines
             lines = [file.readline().strip() for _ in range(10)]
@@ -318,6 +518,11 @@ def detect_file_type(filepath):
             # Check for NMEA markers
             if any(line.startswith('$GP') or line.startswith('$GN') for line in lines):
                 return 'nmea'
+            
+            # Check for Android log format with NMEA sentences
+            for line in lines:
+                if '$GP' in line or '$GN' in line:
+                    return 'android_logs'
             
             return 'unknown'
     
@@ -456,27 +661,28 @@ def create_detailed_analysis(timestamps, satellites_in_view, satellites_in_use, 
 def main():
     """Main function to handle command line arguments and execute visualization."""
     parser = argparse.ArgumentParser(
-        description='Analyze and visualize GPS satellite data from KML or NMEA files',
+        description='Analyze and visualize GPS satellite data from KML files, NMEA files, or Android log folders',
         epilog='''
 Examples:
   %(prog)s track.kml
   %(prog)s gps_log.nmea -o satellite_plot.png
+  %(prog)s logd/ --format android_logs --detailed
   %(prog)s track.kml --detailed --output detailed_analysis.png
   %(prog)s gps_data.txt --format nmea --title "NMEA Satellite Analysis"
         ''',
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
     
-    parser.add_argument('input_file', 
-                       help='Path to the KML or NMEA file containing GPS track data')
+    parser.add_argument('input_path', 
+                       help='Path to the KML file, NMEA file, or Android logd folder containing GPS track data')
     
     parser.add_argument('-o', '--output', 
                        help='Output file path for saving the visualization (PNG format)')
     
     parser.add_argument('--format',
-                       choices=['auto', 'kml', 'nmea'],
+                       choices=['auto', 'kml', 'nmea', 'android_logs'],
                        default='auto',
-                       help='Input file format (default: auto-detect)')
+                       help='Input format (default: auto-detect)')
     
     parser.add_argument('--detailed',
                        action='store_true',
@@ -488,39 +694,45 @@ Examples:
     
     parser.add_argument('--version',
                        action='version',
-                       version='GPS Satellite Analyzer 2.0.0')
+                       version='GPS Satellite Analyzer 2.1.0')
     
     args = parser.parse_args()
     
-    # Check if input file exists
-    if not os.path.exists(args.input_file):
-        print(f"Error: Input file '{args.input_file}' not found.")
+    # Check if input path exists
+    if not os.path.exists(args.input_path):
+        print(f"Error: Input path '{args.input_path}' not found.")
         sys.exit(1)
     
     # Detect file format
     if args.format == 'auto':
-        file_type = detect_file_type(args.input_file)
+        file_type = detect_file_type(args.input_path)
         if file_type == 'unknown':
-            print("Warning: Could not auto-detect file format. Trying KML first, then NMEA...")
+            print("Warning: Could not auto-detect format. Trying KML first, then NMEA...")
             file_type = 'kml'  # Default fallback
     else:
         file_type = args.format
     
-    print(f"Analyzing satellite data from {args.input_file} (format: {file_type})")
+    print(f"Analyzing satellite data from {args.input_path} (format: {file_type})")
     
-    # Parse the input file based on format
-    if file_type == 'nmea':
-        timestamps, satellites_in_view, satellites_in_use, coordinates = parse_nmea_satellite_data(args.input_file)
+    # Parse the input based on format
+    if file_type == 'android_logs':
+        timestamps, satellites_in_view, satellites_in_use, coordinates = parse_android_log_satellite_data(args.input_path)
+    elif file_type == 'nmea':
+        timestamps, satellites_in_view, satellites_in_use, coordinates = parse_nmea_satellite_data(args.input_path)
     else:  # kml or fallback
-        timestamps, satellites_in_view, satellites_in_use, coordinates = parse_kml_satellite_data(args.input_file)
+        timestamps, satellites_in_view, satellites_in_use, coordinates = parse_kml_satellite_data(args.input_path)
         
-        # If KML parsing failed and format was auto, try NMEA
+        # If KML parsing failed and format was auto, try NMEA then Android logs
         if not timestamps and args.format == 'auto':
             print("KML parsing failed, trying NMEA format...")
-            timestamps, satellites_in_view, satellites_in_use, coordinates = parse_nmea_satellite_data(args.input_file)
+            timestamps, satellites_in_view, satellites_in_use, coordinates = parse_nmea_satellite_data(args.input_path)
+            
+            if not timestamps:
+                print("NMEA parsing failed, trying Android logs format...")
+                timestamps, satellites_in_view, satellites_in_use, coordinates = parse_android_log_satellite_data(args.input_path)
     
     if not timestamps:
-        print("No timestamp data found in input file.")
+        print("No timestamp data found in input.")
         sys.exit(1)
     
     print(f"Found {len(timestamps)} data points")

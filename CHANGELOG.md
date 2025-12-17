@@ -8,28 +8,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Android log file support in `satellite_analyzer.py`
+- `parse_android_log_satellite_data()` function for extracting NMEA data from Android logcat files
+- Support for processing multiple log files from Android `logd/` folder
+- Android log timestamp pattern recognition and parsing
+- Regex-based NMEA sentence extraction from log files
+- Support for various Android log timestamp formats
 - NMEA file format support in `satellite_analyzer.py`
 - `parse_nmea_satellite_data()` function for extracting satellite data from NMEA files
 - Support for NMEA sentence types: GGA, GSV, and RMC
-- `detect_file_type()` function for automatic format detection (KML vs NMEA)
-- `--format` command line option to specify input file format (auto, kml, nmea)
-- Coordinate parsing from NMEA GGA sentences
-- Date and time parsing from NMEA RMC sentences
+- Enhanced `detect_file_type()` function for automatic format detection (KML vs NMEA vs Android logs)
+- `--format android_logs` command line option to specify Android log folder processing
+- Coordinate parsing from NMEA GGA sentences in Android logs
+- Date and time parsing from Android log timestamps
 - Robust NMEA parsing with error handling for malformed sentences
-- Auto-fallback from KML to NMEA parsing when format detection fails
-- Enhanced command line examples for NMEA usage
+- Auto-fallback parsing sequence: KML → NMEA → Android logs
+- Enhanced command line examples for Android log usage
 
 ### Changed
-- Updated version to 2.0.0 to reflect major feature addition
-- Enhanced command line argument description to mention NMEA support
-- Improved error handling and user feedback for file parsing
-- Modified main function to handle both KML and NMEA input files
+- Updated version to 2.1.0 to reflect Android log support addition
+- Enhanced command line argument description to mention Android log support
+- Modified `input_file` argument to `input_path` to support both files and folders
+- Improved error handling and user feedback for all parsing methods
+- Enhanced main function to handle KML files, NMEA files, and Android log folders
 
 ### Improved
-- Better file format detection and parsing workflow
+- Better file/folder format detection and parsing workflow
 - More comprehensive satellite data extraction from multiple sources
 - Enhanced user experience with automatic format detection
-- Robust parsing that handles various NMEA dialects and corrupted data
+- Robust parsing that handles various log formats and corrupted data
+- Support for batch processing of multiple Android log files
 
 ## [Previous Versions]
 

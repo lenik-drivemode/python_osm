@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `parse_android_logs_for_coordinates()` function for extracting GPS coordinates from Android logs
 - `create_kml_track()` function for generating KML documents with GPS tracks
 - Multi-track support: automatic track separation on 10+ minute data gaps
+- Separate track stream processing for NMEA messages containing "s:1*78"
+- Dual-stream GPS tracking: regular NMEA and raw coordinates (s:1*78) messages processed as separate tracks
 - Multiple track styling with different colors for each track
 - KML folder organization for multiple tracks
 - Individual start/end markers for each track
@@ -51,7 +53,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Modified `input_file` argument to `input_path` to support both files and folders
 - Improved error handling and user feedback for all parsing methods
 - Enhanced main function to handle KML files, NMEA files, and Android log folders
-- Modified `convert_logs_to_kml.py` to ignore NMEA messages containing "s:1*78"
+- Modified `convert_logs_to_kml.py` to process NMEA messages containing "s:1*78" as separate raw coordinates track stream
 - Changed `convert_logs_to_kml.py` to process logcat files in reverse order
 - Modified `convert_logs_to_kml.py` to ignore NMEA messages starting with "s:1*78"
 

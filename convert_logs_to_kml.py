@@ -29,6 +29,7 @@ def parse_android_logs_for_coordinates(logd_folder, filter_date=None):
     try:
         all_tracks = []
         current_track = []
+        current_raw_track = []  # Separate track for raw coordinates (s:1*78 messages)
         
         # Pattern to match NMEA sentences in Android logs
         nmea_pattern = re.compile(r'\$G[PN][A-Z]{3}[^\r\n]*')
@@ -50,6 +51,7 @@ def parse_android_logs_for_coordinates(logd_folder, filter_date=None):
         current_speed = None
         current_course = None
         last_valid_timestamp = None
+        last_raw_timestamp = None  # Separate timestamp tracking for raw coordinates (s:1*78)
         
         # Track separation threshold (10 minutes)
         TRACK_GAP_THRESHOLD = 600  # seconds
@@ -72,6 +74,14 @@ def parse_android_logs_for_coordinates(logd_folder, filter_date=None):
                 print(f"Track {len(all_tracks)} completed with {len(current_track)} points")
                 current_track = []
         
+        def finalize_raw_track():
+            """Helper function to finalize raw coordinates track and start a new one."""
+            nonlocal current_raw_track, all_tracks
+            if current_raw_track:
+                all_tracks.append(current_raw_track)
+                print(f"Raw Track {len(all_tracks)} completed with {len(current_raw_track)} points")
+                current_raw_track = []
+        
         for log_file in sorted(log_files, reverse=True):
             print(f"Processing {os.path.basename(log_file)}...")
             
@@ -87,9 +97,8 @@ def parse_android_logs_for_coordinates(logd_folder, filter_date=None):
                         if not nmea_matches:
                             continue
                         
-                        # Skip lines containing "s:1*78"
-                        if 's:1*78' in line:
-                            continue
+                        # Determine if this is a raw coordinates message or regular NMEA
+                        is_raw_message = 's:1*78' in line
                         
                         # Try to extract timestamp from the log line
                         log_timestamp = None
@@ -126,11 +135,19 @@ def parse_android_logs_for_coordinates(logd_folder, filter_date=None):
                                     continue
                                 break
                         
-                        # Check for time gap to create new track
-                        if (log_timestamp and last_valid_timestamp and 
-                            (log_timestamp - last_valid_timestamp).total_seconds() > TRACK_GAP_THRESHOLD):
-                            print(f"Time gap of {(log_timestamp - last_valid_timestamp).total_seconds():.1f} seconds detected, starting new track")
-                            finalize_current_track()
+                        # Check for time gap to create new track (separate logic for each stream)
+                        if is_raw_message:
+                            # Handle raw coordinates message stream
+                            if (log_timestamp and last_raw_timestamp and 
+                                (log_timestamp - last_raw_timestamp).total_seconds() > TRACK_GAP_THRESHOLD):
+                                print(f"Time gap of {(log_timestamp - last_raw_timestamp).total_seconds():.1f} seconds detected in raw coordinates stream, starting new track")
+                                finalize_raw_track()
+                        else:
+                            # Handle regular NMEA stream
+                            if (log_timestamp and last_valid_timestamp and 
+                                (log_timestamp - last_valid_timestamp).total_seconds() > TRACK_GAP_THRESHOLD):
+                                print(f"Time gap of {(log_timestamp - last_valid_timestamp).total_seconds():.1f} seconds detected, starting new track")
+                                finalize_current_track()
                         
                         # Process each NMEA sentence found in the line
                         for nmea_sentence in nmea_matches:
@@ -216,22 +233,43 @@ def parse_android_logs_for_coordinates(logd_folder, filter_date=None):
                                 if (log_timestamp and current_lat is not None and current_lon is not None):
                                     # Apply date filter if specified
                                     if filter_date is None or log_timestamp.date() == filter_date:
-                                        # Only add if we have new coordinates or significant time difference
-                                        if (not current_track or 
-                                            abs((log_timestamp - current_track[-1][0]).total_seconds()) > 1 or
-                                            abs(current_lat - current_track[-1][2]) > 0.0001 or
-                                            abs(current_lon - current_track[-1][1]) > 0.0001):
-                                            
-                                            current_track.append((
-                                                log_timestamp,
-                                                current_lon,
-                                                current_lat,
-                                                current_alt or 0,
-                                                current_speed or 0,
-                                                current_course or 0
-                                            ))
-                                            
-                                            last_valid_timestamp = log_timestamp
+                                        
+                                        if is_raw_message:
+                                            # Handle raw coordinates track
+                                            # Only add if we have new coordinates or significant time difference
+                                            if (not current_raw_track or 
+                                                abs((log_timestamp - current_raw_track[-1][0]).total_seconds()) > 1 or
+                                                abs(current_lat - current_raw_track[-1][2]) > 0.0001 or
+                                                abs(current_lon - current_raw_track[-1][1]) > 0.0001):
+                                                
+                                                current_raw_track.append((
+                                                    log_timestamp,
+                                                    current_lon,
+                                                    current_lat,
+                                                    current_alt or 0,
+                                                    current_speed or 0,
+                                                    current_course or 0
+                                                ))
+                                                
+                                                last_raw_timestamp = log_timestamp
+                                        else:
+                                            # Handle regular track
+                                            # Only add if we have new coordinates or significant time difference
+                                            if (not current_track or 
+                                                abs((log_timestamp - current_track[-1][0]).total_seconds()) > 1 or
+                                                abs(current_lat - current_track[-1][2]) > 0.0001 or
+                                                abs(current_lon - current_track[-1][1]) > 0.0001):
+                                                
+                                                current_track.append((
+                                                    log_timestamp,
+                                                    current_lon,
+                                                    current_lat,
+                                                    current_alt or 0,
+                                                    current_speed or 0,
+                                                    current_course or 0
+                                                ))
+                                                
+                                                last_valid_timestamp = log_timestamp
                             
                             except Exception as e:
                                 continue  # Skip malformed NMEA sentences
@@ -240,8 +278,9 @@ def parse_android_logs_for_coordinates(logd_folder, filter_date=None):
                 print(f"Warning: Error processing {log_file}: {e}")
                 continue
         
-        # Finalize the last track
+        # Finalize both track types
         finalize_current_track()
+        finalize_raw_track()
         
         total_points = sum(len(track) for track in all_tracks)
         print(f"Extracted {total_points} GPS coordinates across {len(all_tracks)} tracks from Android logs")

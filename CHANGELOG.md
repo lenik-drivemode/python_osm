@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- New `convert_logs_to_kml.py` script for converting Android logs to KML format
+- `parse_android_logs_for_coordinates()` function for extracting GPS coordinates from Android logs
+- `create_kml_track()` function for generating KML documents with GPS tracks
+- Support for converting NMEA messages from Android log files to KML tracks
+- KML track generation with start/end point markers
+- Command line interface for Android log to KML conversion
+- Date filtering support for KML conversion (today or YYYY-MM-DD format)
+- Customizable track names and descriptions in generated KML
+- GPS statistics reporting (coordinate ranges, altitude, speed)
+- Support for GGA and RMC NMEA sentence parsing for coordinates and metadata
+- High-quality KML output compatible with Google Earth and other mapping apps
 - Android log file support in `satellite_analyzer.py`
 - `parse_android_log_satellite_data()` function for extracting NMEA data from Android logcat files
 - Support for processing multiple log files from Android `logd/` folder
@@ -35,6 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Modified `input_file` argument to `input_path` to support both files and folders
 - Improved error handling and user feedback for all parsing methods
 - Enhanced main function to handle KML files, NMEA files, and Android log folders
+- Modified `convert_logs_to_kml.py` to ignore NMEA messages starting with "s:1*78"
 
 ### Improved
 - Better file/folder format detection and parsing workflow

@@ -72,7 +72,7 @@ def parse_android_logs_for_coordinates(logd_folder, filter_date=None):
                 print(f"Track {len(all_tracks)} completed with {len(current_track)} points")
                 current_track = []
         
-        for log_file in sorted(log_files):
+        for log_file in sorted(log_files, reverse=True):
             print(f"Processing {os.path.basename(log_file)}...")
             
             try:

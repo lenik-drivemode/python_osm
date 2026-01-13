@@ -52,6 +52,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Improved error handling and user feedback for all parsing methods
 - Enhanced main function to handle KML files, NMEA files, and Android log folders
 - Modified `convert_logs_to_kml.py` to ignore NMEA messages containing "s:1*78"
+- Changed `convert_logs_to_kml.py` to process logcat files in reverse order
 - Modified `convert_logs_to_kml.py` to ignore NMEA messages starting with "s:1*78"
 
 ### Improved

@@ -87,6 +87,10 @@ def parse_android_logs_for_coordinates(logd_folder, filter_date=None):
                         if not nmea_matches:
                             continue
                         
+                        # Skip lines containing "s:1*78"
+                        if 's:1*78' in line:
+                            continue
+                        
                         # Try to extract timestamp from the log line
                         log_timestamp = None
                         for pattern in timestamp_patterns:

@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - New `convert_logs_to_kml.py` script for converting Android logs to KML format
 - `parse_android_logs_for_coordinates()` function for extracting GPS coordinates from Android logs
 - `create_kml_track()` function for generating KML documents with GPS tracks
+- Multi-track support: automatic track separation on 10+ minute data gaps
+- Multiple track styling with different colors for each track
+- KML folder organization for multiple tracks
+- Individual start/end markers for each track
+- Track duration and point count statistics
 - Support for converting NMEA messages from Android log files to KML tracks
 - KML track generation with start/end point markers
 - Command line interface for Android log to KML conversion
@@ -46,6 +51,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Modified `input_file` argument to `input_path` to support both files and folders
 - Improved error handling and user feedback for all parsing methods
 - Enhanced main function to handle KML files, NMEA files, and Android log folders
+- Modified `convert_logs_to_kml.py` to ignore NMEA messages containing "s:1*78"
 - Modified `convert_logs_to_kml.py` to ignore NMEA messages starting with "s:1*78"
 
 ### Improved

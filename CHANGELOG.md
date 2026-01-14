@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Extended KML format support with gx:Track elements for enhanced GPS data visualization
+- Speed data inclusion in KML tracks with values in km/h for each track point
+- Elevation data integration using altitude values from GPS coordinates  
+- Bearing/course data for each track point showing movement direction in degrees
+- KML schema definition for track point extended data (speed and bearing)
+- Proper timestamp formatting in ISO 8601 format for gx:Track elements
 - Enhanced track naming with descriptive labels: "Track Corrected XX" and "Track Raw XX"
 - Track type identification in KML output with clear distinction between raw and corrected coordinates
 - Custom track names with sequential numbering for each track type (Corrected 01, Raw 01, etc.)
@@ -41,9 +47,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - High-quality KML output compatible with Google Earth and other mapping apps
 
 ### Changed
-- Enhanced track structure with metadata support for better track identification and naming  
-- Improved KML output with descriptive track names and type-specific information
-- Better track organization with separate numbering sequences for raw and corrected tracks
+- Migrated from basic LineString KML elements to extended gx:Track format for richer data visualization
+- Improved KML output with comprehensive GPS metadata including speed, elevation, and bearing
+- Enhanced Google Earth compatibility with proper extended data schema definitions
+- Better track structure with metadata support for track identification and naming
 - Improved speed parsing priority: VTG km/h > VTG knots > RMC knots for better accuracy
 - Enhanced NMEA message processing with additional VTG support for course and speed
 - Better speed and course data quality through VTG message validation

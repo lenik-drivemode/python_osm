@@ -13,6 +13,8 @@ import sys
 import os
 import re
 import glob
+import xml.etree.ElementTree as ET
+from xml.dom import minidom
 
 def parse_android_logs_for_coordinates(logd_folder, filter_date=None, include_raw=False):
     """
@@ -343,7 +345,7 @@ def parse_android_logs_for_coordinates(logd_folder, filter_date=None, include_ra
 
 def create_kml_track(tracks, track_name="GPS Track", description="Track converted from Android logs"):
     """
-    Create a KML document with multiple GPS tracks from coordinates.
+    Create a KML document with multiple GPS tracks from coordinates using extended KML format.
     
     Args:
         tracks (list): List of track objects, where each track is a dict with 'type', 'coordinates', and 'name'
@@ -356,9 +358,10 @@ def create_kml_track(tracks, track_name="GPS Track", description="Track converte
     if not tracks or not any(track.get('coordinates', []) for track in tracks):
         return None
     
-    # Create KML root element
+    # Create KML root element with extended data namespace
     kml = ET.Element('kml')
     kml.set('xmlns', 'http://www.opengis.net/kml/2.2')
+    kml.set('xmlns:gx', 'http://www.google.com/kml/ext/2.2')
     
     # Create Document
     document = ET.SubElement(kml, 'Document')
@@ -370,6 +373,25 @@ def create_kml_track(tracks, track_name="GPS Track", description="Track converte
     desc_elem = ET.SubElement(document, 'description')
     total_points = sum(len(track.get('coordinates', [])) for track in tracks)
     desc_elem.text = f"{description}\nGenerated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\nTracks: {len(tracks)}, Total points: {total_points}"
+    
+    # Define schema for extended data
+    schema = ET.SubElement(document, 'Schema')
+    schema.set('name', 'TrackPointSchema')
+    schema.set('id', 'TrackPointSchema')
+    
+    # Speed field
+    speed_field = ET.SubElement(schema, 'gx:SimpleField')
+    speed_field.set('type', 'float')
+    speed_field.set('name', 'speed')
+    speed_display = ET.SubElement(speed_field, 'displayName')
+    speed_display.text = 'Speed (km/h)'
+    
+    # Bearing field  
+    bearing_field = ET.SubElement(schema, 'gx:SimpleField')
+    bearing_field.set('type', 'float')
+    bearing_field.set('name', 'bearing')
+    bearing_display = ET.SubElement(bearing_field, 'displayName')
+    bearing_display.text = 'Bearing (degrees)'
     
     # Create styles for different tracks
     colors = ['ff0000ff', 'ff00ff00', 'ffff0000', 'ff00ffff', 'ffff00ff', 'ffffff00']
@@ -415,22 +437,48 @@ def create_kml_track(tracks, track_name="GPS Track", description="Track converte
         style_url = ET.SubElement(placemark, 'styleUrl')
         style_url.text = f'#trackStyle{(track_idx % len(colors)) + 1}'
         
-        # Create LineString for the track
-        linestring = ET.SubElement(placemark, 'LineString')
+        # Create gx:Track for the extended data
+        gx_track = ET.SubElement(placemark, 'gx:Track')
         
-        tessellate = ET.SubElement(linestring, 'tessellate')
-        tessellate.text = '1'
-        
-        altitude_mode = ET.SubElement(linestring, 'altitudeMode')
+        # Set altitude mode
+        altitude_mode = ET.SubElement(gx_track, 'altitudeMode')
         altitude_mode.text = 'absolute'
         
-        # Create coordinates string
-        coords_elem = ET.SubElement(linestring, 'coordinates')
-        coord_strings = []
-        for timestamp, lon, lat, alt, speed, course in coordinates:
-            coord_strings.append(f"{lon},{lat},{alt}")
+        # Add timestamps, coordinates, and extended data
+        speed_values = []
+        bearing_values = []
         
-        coords_elem.text = '\n' + '\n'.join(coord_strings) + '\n'
+        for timestamp, lon, lat, alt, speed, course in coordinates:
+            # Add when element (timestamp)
+            when_elem = ET.SubElement(gx_track, 'when')
+            when_elem.text = timestamp.strftime('%Y-%m-%dT%H:%M:%S.%fZ')
+            
+            # Add gx:coord element (longitude, latitude, altitude)
+            coord_elem = ET.SubElement(gx_track, 'gx:coord')
+            coord_elem.text = f"{lon} {lat} {alt}"
+            
+            # Collect speed and bearing values
+            speed_values.append(str(speed) if speed is not None else '0.0')
+            bearing_values.append(str(course) if course is not None else '0.0')
+        
+        # Add extended data for speed and bearing
+        extended_data = ET.SubElement(gx_track, 'ExtendedData')
+        schema_data = ET.SubElement(extended_data, 'SchemaData')
+        schema_data.set('schemaUrl', '#TrackPointSchema')
+        
+        # Add speed data
+        speed_array = ET.SubElement(schema_data, 'gx:SimpleArrayData')
+        speed_array.set('name', 'speed')
+        for speed_val in speed_values:
+            speed_elem = ET.SubElement(speed_array, 'gx:value')
+            speed_elem.text = speed_val
+        
+        # Add bearing data
+        bearing_array = ET.SubElement(schema_data, 'gx:SimpleArrayData')
+        bearing_array.set('name', 'bearing')
+        for bearing_val in bearing_values:
+            bearing_elem = ET.SubElement(bearing_array, 'gx:value')
+            bearing_elem.text = bearing_val
         
         # Add start point for this track
         start_placemark = ET.SubElement(folder, 'Placemark')

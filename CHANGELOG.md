@@ -22,6 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - KML track generation with start/end point markers
 - Command line interface for Android log to KML conversion
 - Date filtering support for KML conversion (today or YYYY-MM-DD format)
+- `--raw` command line option to include raw coordinates (s:1*78) tracks
+- Conditional processing of raw coordinates based on user preference
 - Customizable track names and descriptions in generated KML
 - GPS statistics reporting (coordinate ranges, altitude, speed)
 - Support for GGA and RMC NMEA sentence parsing for coordinates and metadata

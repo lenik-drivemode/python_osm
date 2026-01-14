@@ -14,7 +14,7 @@ import os
 import re
 import glob
 
-def parse_android_logs_for_coordinates(logd_folder, filter_date=None):
+def parse_android_logs_for_coordinates(logd_folder, filter_date=None, include_raw=False):
     """
     Parse Android log files and extract GPS coordinates from NMEA messages.
     Creates separate tracks when data gaps exceed 10 minutes.
@@ -22,6 +22,7 @@ def parse_android_logs_for_coordinates(logd_folder, filter_date=None):
     Args:
         logd_folder (str): Path to the logd folder containing Android log files
         filter_date (date, optional): Filter data by specific date
+        include_raw (bool): Whether to include raw coordinates (s:1*78) tracks
         
     Returns:
         list: List of tracks, where each track is a list of tuples (timestamp, longitude, latitude, altitude, speed, course)
@@ -99,6 +100,10 @@ def parse_android_logs_for_coordinates(logd_folder, filter_date=None):
                         
                         # Determine if this is a raw coordinates message or regular NMEA
                         is_raw_message = 's:1*78' in line
+                        
+                        # Skip raw messages if not requested
+                        if is_raw_message and not include_raw:
+                            continue
                         
                         # Try to extract timestamp from the log line
                         log_timestamp = None
@@ -280,7 +285,8 @@ def parse_android_logs_for_coordinates(logd_folder, filter_date=None):
         
         # Finalize both track types
         finalize_current_track()
-        finalize_raw_track()
+        if include_raw:
+            finalize_raw_track()
         
         total_points = sum(len(track) for track in all_tracks)
         print(f"Extracted {total_points} GPS coordinates across {len(all_tracks)} tracks from Android logs")
@@ -433,6 +439,7 @@ Examples:
   %(prog)s logd/ -o gps_track.kml
   %(prog)s logd/ --date today -o today_track.kml
   %(prog)s logd/ --date 2026-01-13 --name "Daily Commute" -o commute.kml
+  %(prog)s logd/ --raw -o tracks_with_raw.kml
         ''',
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
@@ -456,6 +463,10 @@ Examples:
                        default='Track converted from Android logs',
                        help='Description for the GPS track')
     
+    parser.add_argument('--raw',
+                       action='store_true',
+                       help='Include raw coordinates (s:1*78) tracks in the output')
+    
     parser.add_argument('--version',
                        action='version',
                        version='Android Logs to KML Converter 1.0.0')
@@ -473,9 +484,10 @@ Examples:
     
     # Parse Android logs for GPS coordinates
     date_filter_str = f" for date {args.date}" if args.date else ""
-    print(f"Extracting GPS coordinates from {args.logd_folder}{date_filter_str}")
+    raw_filter_str = " (including raw coordinates)" if args.raw else ""
+    print(f"Extracting GPS coordinates from {args.logd_folder}{date_filter_str}{raw_filter_str}")
     
-    tracks = parse_android_logs_for_coordinates(args.logd_folder, args.date)
+    tracks = parse_android_logs_for_coordinates(args.logd_folder, args.date, args.raw)
     
     if not tracks or not any(tracks):
         print("No GPS coordinates found in log files.")

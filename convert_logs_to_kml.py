@@ -32,6 +32,10 @@ def parse_android_logs_for_coordinates(logd_folder, filter_date=None, include_ra
         current_track = []
         current_raw_track = []  # Separate track for raw coordinates (s:1*78 messages)
         
+        # Track metadata
+        current_track_type = "corrected"  # "corrected" or "raw"
+        current_raw_track_type = "raw"
+        
         # Pattern to match NMEA sentences in Android logs
         nmea_pattern = re.compile(r'\$G[PN][A-Z]{3}[^\r\n]*')
         
@@ -71,7 +75,12 @@ def parse_android_logs_for_coordinates(logd_folder, filter_date=None, include_ra
             """Helper function to finalize current track and start a new one."""
             nonlocal current_track, all_tracks
             if current_track:
-                all_tracks.append(current_track)
+                track_obj = {
+                    'type': 'corrected',
+                    'coordinates': current_track,
+                    'name': f"Track Corrected {len([t for t in all_tracks if t.get('type') == 'corrected']) + 1:02d}"
+                }
+                all_tracks.append(track_obj)
                 print(f"Track {len(all_tracks)} completed with {len(current_track)} points")
                 current_track = []
         
@@ -79,7 +88,12 @@ def parse_android_logs_for_coordinates(logd_folder, filter_date=None, include_ra
             """Helper function to finalize raw coordinates track and start a new one."""
             nonlocal current_raw_track, all_tracks
             if current_raw_track:
-                all_tracks.append(current_raw_track)
+                track_obj = {
+                    'type': 'raw',
+                    'coordinates': current_raw_track,
+                    'name': f"Track Raw {len([t for t in all_tracks if t.get('type') == 'raw']) + 1:02d}"
+                }
+                all_tracks.append(track_obj)
                 print(f"Raw Track {len(all_tracks)} completed with {len(current_raw_track)} points")
                 current_raw_track = []
         
@@ -319,7 +333,7 @@ def parse_android_logs_for_coordinates(logd_folder, filter_date=None, include_ra
         if include_raw:
             finalize_raw_track()
         
-        total_points = sum(len(track) for track in all_tracks)
+        total_points = sum(len(track['coordinates']) for track in all_tracks)
         print(f"Extracted {total_points} GPS coordinates across {len(all_tracks)} tracks from Android logs")
         return all_tracks
         
@@ -332,14 +346,14 @@ def create_kml_track(tracks, track_name="GPS Track", description="Track converte
     Create a KML document with multiple GPS tracks from coordinates.
     
     Args:
-        tracks (list): List of tracks, where each track is a list of tuples (timestamp, lon, lat, alt, speed, course)
+        tracks (list): List of track objects, where each track is a dict with 'type', 'coordinates', and 'name'
         track_name (str): Base name for the tracks
         description (str): Description of the tracks
         
     Returns:
         str: KML document as string
     """
-    if not tracks or not any(tracks):
+    if not tracks or not any(track.get('coordinates', []) for track in tracks):
         return None
     
     # Create KML root element
@@ -354,7 +368,7 @@ def create_kml_track(tracks, track_name="GPS Track", description="Track converte
     name_elem.text = track_name
     
     desc_elem = ET.SubElement(document, 'description')
-    total_points = sum(len(track) for track in tracks)
+    total_points = sum(len(track.get('coordinates', [])) for track in tracks)
     desc_elem.text = f"{description}\nGenerated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\nTracks: {len(tracks)}, Total points: {total_points}"
     
     # Create styles for different tracks
@@ -376,7 +390,11 @@ def create_kml_track(tracks, track_name="GPS Track", description="Track converte
     folder_name.text = f"GPS Tracks ({len(tracks)} tracks)"
     
     # Process each track
-    for track_idx, coordinates in enumerate(tracks):
+    for track_idx, track_obj in enumerate(tracks):
+        coordinates = track_obj.get('coordinates', [])
+        track_type = track_obj.get('type', 'corrected')
+        track_custom_name = track_obj.get('name', f"Track {track_idx + 1}")
+        
         if not coordinates:
             continue
             
@@ -384,13 +402,14 @@ def create_kml_track(tracks, track_name="GPS Track", description="Track converte
         placemark = ET.SubElement(folder, 'Placemark')
         
         placemark_name = ET.SubElement(placemark, 'name')
-        placemark_name.text = f"{track_name} - Track {track_idx + 1}"
+        placemark_name.text = track_custom_name
         
         placemark_desc = ET.SubElement(placemark, 'description')
         start_time = coordinates[0][0].strftime('%Y-%m-%d %H:%M:%S')
         end_time = coordinates[-1][0].strftime('%Y-%m-%d %H:%M:%S')
         duration = coordinates[-1][0] - coordinates[0][0]
-        placemark_desc.text = f"Track {track_idx + 1}: {start_time} to {end_time}\nDuration: {duration}\nPoints: {len(coordinates)}"
+        track_type_label = "Raw coordinates" if track_type == 'raw' else "Corrected coordinates"
+        placemark_desc.text = f"{track_custom_name} ({track_type_label}): {start_time} to {end_time}\nDuration: {duration}\nPoints: {len(coordinates)}"
         
         # Reference the style
         style_url = ET.SubElement(placemark, 'styleUrl')
@@ -416,9 +435,9 @@ def create_kml_track(tracks, track_name="GPS Track", description="Track converte
         # Add start point for this track
         start_placemark = ET.SubElement(folder, 'Placemark')
         start_name = ET.SubElement(start_placemark, 'name')
-        start_name.text = f'Track {track_idx + 1} Start'
+        start_name.text = f'{track_custom_name} Start'
         start_desc = ET.SubElement(start_placemark, 'description')
-        start_desc.text = f"Track {track_idx + 1} start: {coordinates[0][0].strftime('%Y-%m-%d %H:%M:%S')}"
+        start_desc.text = f"{track_custom_name} start: {coordinates[0][0].strftime('%Y-%m-%d %H:%M:%S')}"
         
         start_point = ET.SubElement(start_placemark, 'Point')
         start_coords = ET.SubElement(start_point, 'coordinates')
@@ -427,9 +446,9 @@ def create_kml_track(tracks, track_name="GPS Track", description="Track converte
         # Add end point for this track
         end_placemark = ET.SubElement(folder, 'Placemark')
         end_name = ET.SubElement(end_placemark, 'name')
-        end_name.text = f'Track {track_idx + 1} End'
+        end_name.text = f'{track_custom_name} End'
         end_desc = ET.SubElement(end_placemark, 'description')
-        end_desc.text = f"Track {track_idx + 1} end: {coordinates[-1][0].strftime('%Y-%m-%d %H:%M:%S')}"
+        end_desc.text = f"{track_custom_name} end: {coordinates[-1][0].strftime('%Y-%m-%d %H:%M:%S')}"
         
         end_point = ET.SubElement(end_placemark, 'Point')
         end_coords = ET.SubElement(end_point, 'coordinates')
@@ -520,14 +539,14 @@ Examples:
     
     tracks = parse_android_logs_for_coordinates(args.logd_folder, args.date, args.raw)
     
-    if not tracks or not any(tracks):
+    if not tracks or not any(track.get('coordinates', []) for track in tracks):
         print("No GPS coordinates found in log files.")
         sys.exit(1)
     
     # Calculate statistics for all tracks
     all_coordinates = []
     for track in tracks:
-        all_coordinates.extend(track)
+        all_coordinates.extend(track.get('coordinates', []))
     
     print(f"Found {len(tracks)} separate tracks with {len(all_coordinates)} total GPS coordinates")
     
@@ -551,8 +570,10 @@ Examples:
         # Print track summary
         print("\nTrack Summary:")
         for i, track in enumerate(tracks, 1):
-            duration = track[-1][0] - track[0][0] if len(track) > 1 else 0
-            print(f"  Track {i}: {len(track)} points, {duration} duration")
+            track_coords = track.get('coordinates', [])
+            track_name = track.get('name', f'Track {i}')
+            duration = track_coords[-1][0] - track_coords[0][0] if len(track_coords) > 1 else 0
+            print(f"  {track_name}: {len(track_coords)} points, {duration} duration")
     
     # Create KML document
     print("Creating KML document with multiple tracks...")

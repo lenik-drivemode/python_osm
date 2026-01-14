@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Enhanced track naming with descriptive labels: "Track Corrected XX" and "Track Raw XX"
+- Track type identification in KML output with clear distinction between raw and corrected coordinates
+- Custom track names with sequential numbering for each track type (Corrected 01, Raw 01, etc.)
+- Track metadata structure to support enhanced track information and naming
+- Detailed track descriptions indicating coordinate type (Raw coordinates vs Corrected coordinates)
 - NMEA VTG (Velocity Made Good) message parsing for enhanced speed and course extraction
 - Support for both GPS and GNSS VTG messages ($GPVTG and $GNVTG)
 - Preferred use of km/h speed values when available in VTG messages
@@ -36,6 +41,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - High-quality KML output compatible with Google Earth and other mapping apps
 
 ### Changed
+- Enhanced track structure with metadata support for better track identification and naming  
+- Improved KML output with descriptive track names and type-specific information
+- Better track organization with separate numbering sequences for raw and corrected tracks
 - Improved speed parsing priority: VTG km/h > VTG knots > RMC knots for better accuracy
 - Enhanced NMEA message processing with additional VTG support for course and speed
 - Better speed and course data quality through VTG message validation

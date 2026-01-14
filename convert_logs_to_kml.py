@@ -234,6 +234,37 @@ def parse_android_logs_for_coordinates(logd_folder, filter_date=None, include_ra
                                                 except ValueError:
                                                     pass
                                 
+                                elif nmea_sentence.startswith('$GPVTG') or nmea_sentence.startswith('$GNVTG'):
+                                    # VTG - Velocity Made Good
+                                    parts = nmea_sentence.split(',')
+                                    if len(parts) >= 10:
+                                        true_track = parts[1]  # True track made good (degrees)
+                                        magnetic_track = parts[3]  # Magnetic track made good (degrees)
+                                        speed_knots = parts[5]  # Speed over ground in knots
+                                        speed_kmh = parts[7]  # Speed over ground in km/h
+                                        mode = parts[9]  # Mode indicator (A=Autonomous, D=Differential, E=Estimated, N=Not valid)
+                                        
+                                        # Only use data with valid mode
+                                        if mode in ['A', 'D']:  # Autonomous or Differential
+                                            # Parse speed (prefer km/h if available, otherwise convert from knots)
+                                            if speed_kmh:
+                                                try:
+                                                    current_speed = float(speed_kmh)
+                                                except ValueError:
+                                                    pass
+                                            elif speed_knots:
+                                                try:
+                                                    current_speed = float(speed_knots) * 1.852
+                                                except ValueError:
+                                                    pass
+                                            
+                                            # Parse true track as course
+                                            if true_track:
+                                                try:
+                                                    current_course = float(true_track)
+                                                except ValueError:
+                                                    pass
+                                
                                 # If we have complete coordinate data and timestamp, record it
                                 if (log_timestamp and current_lat is not None and current_lon is not None):
                                     # Apply date filter if specified

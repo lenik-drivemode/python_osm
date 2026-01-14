@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- NMEA VTG (Velocity Made Good) message parsing for enhanced speed and course extraction
+- Support for both GPS and GNSS VTG messages ($GPVTG and $GNVTG)
+- Preferred use of km/h speed values when available in VTG messages
+- True track parsing from VTG as additional course information source
+- Enhanced speed accuracy with direct km/h parsing from VTG messages
+- VTG mode indicator validation (A=Autonomous, D=Differential) for data quality assurance
 - New `convert_logs_to_kml.py` script for converting Android logs to KML format
 - `parse_android_logs_for_coordinates()` function for extracting GPS coordinates from Android logs
 - `create_kml_track()` function for generating KML documents with GPS tracks
@@ -28,6 +34,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GPS statistics reporting (coordinate ranges, altitude, speed)
 - Support for GGA and RMC NMEA sentence parsing for coordinates and metadata
 - High-quality KML output compatible with Google Earth and other mapping apps
+
+### Changed
+- Improved speed parsing priority: VTG km/h > VTG knots > RMC knots for better accuracy
+- Enhanced NMEA message processing with additional VTG support for course and speed
+- Better speed and course data quality through VTG message validation
+
 - Android log file support in `satellite_analyzer.py`
 - `parse_android_log_satellite_data()` function for extracting NMEA data from Android logcat files
 - Support for processing multiple log files from Android `logd/` folder

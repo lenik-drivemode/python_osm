@@ -697,7 +697,48 @@ def create_detailed_speed_analysis(timestamps, speeds_kmh, filepath=None):
     else:
         plt.show()
 
-def main():
+def trim_low_speed_points(timestamps, speeds_kmh, coordinates, min_speed):
+    """
+    Trim points with speed below a certain threshold from the start and end of the data.
+    
+    Args:
+        timestamps (list): List of datetime objects
+        speeds_kmh (list): Speed values in km/h
+        coordinates (list): List of coordinate tuples
+        min_speed (float): Minimum speed threshold in km/h
+        
+    Returns:
+        tuple: Trimmed (timestamps, speeds_kmh, coordinates)
+    """
+    if not timestamps or not speeds_kmh:
+        return timestamps, speeds_kmh, coordinates
+    
+    # Convert min_speed to float
+    min_speed = float(min_speed)
+    
+    # Find first index with speed >= min_speed
+    start_index = 0
+    while start_index < len(speeds_kmh) and speeds_kmh[start_index] < min_speed:
+        start_index += 1
+    
+    # Find last index with speed >= min_speed
+    end_index = len(speeds_kmh) - 1
+    while end_index >= 0 and speeds_kmh[end_index] < min_speed:
+        end_index -= 1
+    
+    # If all points are below min_speed, return empty lists
+    if start_index > end_index:
+        return [], [], []
+    
+    # Trim the data
+    trimmed_timestamps = timestamps[start_index:end_index+1]
+    trimmed_speeds = speeds_kmh[start_index:end_index+1]
+    trimmed_coords = coordinates[start_index:end_index+1]
+    
+    print(f"Trimmed data to {len(trimmed_timestamps)} points (min speed: {min_speed} km/h)")
+    return trimmed_timestamps, trimmed_speeds, trimmed_coords
+
+if __name__ == "__main__":
     """Main function to handle command line arguments and execute visualization."""
     parser = argparse.ArgumentParser(
         description='Analyze and visualize GPS speed data from KML files, NMEA files, or Android log folders',
@@ -710,6 +751,8 @@ Examples:
   %(prog)s logd/ --date 2026-01-15 --detailed
   %(prog)s track.kml --detailed --output detailed_speed_analysis.png
   %(prog)s gps_data.txt --format nmea --title "NMEA Speed Analysis"
+  %(prog)s logd/ --min-speed 5.0  # Trim points below 5 km/h
+  %(prog)s logd/ --no-trim  # Keep all speed data including stationary
         ''',
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
@@ -736,6 +779,15 @@ Examples:
     parser.add_argument('--date',
                        type=parse_date_argument,
                        help='Filter data by date. Use "today" or YYYY-MM-DD format (e.g., 2026-01-15)')
+    
+    parser.add_argument('--min-speed',
+                       type=float,
+                       default=2.0,
+                       help='Minimum speed threshold in km/h to trim start/end points (default: 2.0)')
+    
+    parser.add_argument('--no-trim',
+                       action='store_true',
+                       help='Skip trimming of low-speed points at start and end')
     
     parser.add_argument('--version',
                        action='version',
@@ -791,17 +843,26 @@ Examples:
             print(f"No data found for date {args.date}")
             sys.exit(1)
     
-    print(f"Found {len(timestamps)} speed data points")
-    print(f"Time range: {timestamps[0]} to {timestamps[-1]}")
+    # Trim low-speed points at start and end (unless disabled)
+    if not args.no_trim and speeds_kmh:
+        print(f"Trimming low-speed points (< {args.min_speed} km/h) from start and end...")
+        timestamps, speeds_kmh, coordinates = trim_low_speed_points(
+            timestamps, speeds_kmh, coordinates, args.min_speed
+        )
+        
+        if not timestamps:
+            print("No data remaining after trimming low-speed points.")
+            sys.exit(1)
     
-    if speeds_kmh:
-        print(f"Speed range: {min(speeds_kmh):.1f} - {max(speeds_kmh):.1f} km/h (avg: {np.mean(speeds_kmh):.1f} km/h)")
+    print(f"Found {len(timestamps)} speed data points")
+    if timestamps:
+        print(f"Time range: {timestamps[0]} to {timestamps[-1]}")
+        
+        if speeds_kmh:
+            print(f"Speed range: {min(speeds_kmh):.1f} - {max(speeds_kmh):.1f} km/h (avg: {np.mean(speeds_kmh):.1f} km/h)")
     
     # Create visualization
     if args.detailed:
         create_detailed_speed_analysis(timestamps, speeds_kmh, args.output)
     else:
         plot_speed_data(timestamps, speeds_kmh, args.title, args.output)
-
-if __name__ == "__main__":
-    main()

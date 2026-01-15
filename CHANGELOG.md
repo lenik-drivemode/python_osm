@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `--no_filter` command line flag to disable point filtering and keep all GPS points
+- Default point filtering behavior for optimized track quality and file sizes
 - Optional point filtering with `--filter` command line flag
 - Conditional GPS point filtering based on time (1 second) and distance (11 meter) thresholds
 - Better control over track detail and smoothness through optional filtering
@@ -50,7 +52,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - High-quality KML output compatible with Google Earth and other mapping apps
 
 ### Changed
-- Reduced time filtering threshold from 1 second to 100 milliseconds for higher temporal precision when --filter is used
+- **BREAKING**: Point filtering is now enabled by default for better track quality and manageable file sizes
+- Replaced `--filter` flag with `--no_filter` flag to disable filtering when maximum detail is needed
+- Default behavior now applies high-precision filtering (100ms time + 11cm distance thresholds)
+- Reduced time filtering threshold from 1 second to 100 milliseconds for higher temporal precision when filtering is applied
 - Further reduced distance filtering threshold from 1.1 meters to 11 centimeters for very high precision tracks when --filter is used
 - Reduced distance filtering threshold from 11 meters to 1.1 meters for more detailed tracks when --filter is used
 - Point filtering is now optional and disabled by default for more detailed tracks

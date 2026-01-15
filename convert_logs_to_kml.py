@@ -16,7 +16,7 @@ import glob
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
 
-def parse_android_logs_for_coordinates(logd_folder, filter_date=None, include_raw=False, apply_filter=False):
+def parse_android_logs_for_coordinates(logd_folder, filter_date=None, include_raw=False, apply_filter=True):
     """
     Parse Android log files and extract GPS coordinates from NMEA messages.
     Creates separate tracks when data gaps exceed 10 minutes.
@@ -25,7 +25,7 @@ def parse_android_logs_for_coordinates(logd_folder, filter_date=None, include_ra
         logd_folder (str): Path to the logd folder containing Android log files
         filter_date (date, optional): Filter data by specific date
         include_raw (bool): Whether to include raw coordinates (s:1*78) tracks
-        apply_filter (bool): Whether to apply point filtering based on time and distance
+        apply_filter (bool): Whether to apply point filtering based on time and distance (default: True)
         
     Returns:
         list: List of tracks, where each track is a list of tuples (timestamp, longitude, latitude, altitude, speed, course)
@@ -545,10 +545,11 @@ def main():
         description='Convert Android log files containing NMEA GPS messages to KML track format',
         epilog='''
 Examples:
-  %(prog)s logd/ -o gps_track.kml
-  %(prog)s logd/ --date today -o today_track.kml
+  %(prog)s logd/ -o gps_track.kml                                    # Filtered tracks (default)
+  %(prog)s logd/ --no_filter -o detailed_track.kml                   # All GPS points (unfiltered)
+  %(prog)s logd/ --date today -o today_track.kml                     # Today's tracks (filtered)
   %(prog)s logd/ --date 2026-01-13 --name "Daily Commute" -o commute.kml
-  %(prog)s logd/ --raw -o tracks_with_raw.kml
+  %(prog)s logd/ --raw -o tracks_with_raw.kml                        # Include raw coordinates
         ''',
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
@@ -576,9 +577,9 @@ Examples:
                        action='store_true',
                        help='Include raw coordinates (s:1*78) tracks in the output')
     
-    parser.add_argument('--filter',
+    parser.add_argument('--no_filter',
                        action='store_true',
-                       help='Apply point filtering based on time (100ms) and distance (11cm) thresholds')
+                       help='Disable point filtering (keep all GPS points for maximum detail)')
     
     parser.add_argument('--version',
                        action='version',
@@ -600,7 +601,7 @@ Examples:
     raw_filter_str = " (including raw coordinates)" if args.raw else ""
     print(f"Extracting GPS coordinates from {args.logd_folder}{date_filter_str}{raw_filter_str}")
     
-    tracks = parse_android_logs_for_coordinates(args.logd_folder, args.date, args.raw, args.filter)
+    tracks = parse_android_logs_for_coordinates(args.logd_folder, args.date, args.raw, not args.no_filter)
     
     if not tracks or not any(track.get('coordinates', []) for track in tracks):
         print("No GPS coordinates found in log files.")

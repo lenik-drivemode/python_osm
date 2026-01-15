@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 
 # 1. Define the place of interest
 # You can specify a city, a neighborhood, or even a bounding box.
-place_name = "Kamppi, Helsinki, Finland" 
+place_name = "Kamppi, Helsinki, Finland"
 
 # 2. This fetches the OSM street network as a NetworkX MultiDiGraph object.
 graph = ox.graph_from_place(place_name)

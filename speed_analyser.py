@@ -117,6 +117,9 @@ def parse_android_log_speed_data(logd_folder):
                         if log_timestamp is None:
                             log_timestamp = datetime.now()
                         
+                        # Validate and fix timestamp chronological order
+                        log_timestamp = validate_and_fix_timestamp(log_timestamp, timestamps, line_num, log_file)
+                        
                         # Process each NMEA sentence found in the line
                         for nmea_sentence in nmea_matches:
                             try:
@@ -737,6 +740,44 @@ def trim_low_speed_points(timestamps, speeds_kmh, coordinates, min_speed):
     
     print(f"Trimmed data to {len(trimmed_timestamps)} points (min speed: {min_speed} km/h)")
     return trimmed_timestamps, trimmed_speeds, trimmed_coords
+
+def validate_and_fix_timestamp(log_timestamp, timestamps, line_num, log_file):
+    """
+    Validate timestamp chronological order and fix if necessary.
+    
+    Args:
+        log_timestamp: The timestamp to validate
+        timestamps: List of existing timestamps
+        line_num: Current line number for error reporting
+        log_file: Current log file for error reporting
+        
+    Returns:
+        datetime: Validated/corrected timestamp
+    """
+    if not timestamps:
+        return log_timestamp
+    
+    # Check if timestamp is after the last timestamp (normal case)
+    if log_timestamp >= timestamps[-1]:
+        return log_timestamp
+    
+    # Timestamp is out of order - need to fix it
+    print(f"Warning: Out-of-order timestamp at {os.path.basename(log_file)}:{line_num}")
+    print(f"  Expected >= {timestamps[-1]}, got {log_timestamp}")
+    
+    # Find the correct position for interpolation
+    if len(timestamps) >= 2:
+        # Interpolate between last two timestamps
+        time_diff = (timestamps[-1] - timestamps[-2]).total_seconds()
+        # Add the same time difference to create next expected timestamp
+        corrected_timestamp = timestamps[-1] + timedelta(seconds=time_diff)
+        print(f"  Corrected to: {corrected_timestamp}")
+        return corrected_timestamp
+    else:
+        # Only one previous timestamp, add 1 second
+        corrected_timestamp = timestamps[-1] + timedelta(seconds=1)
+        print(f"  Corrected to: {corrected_timestamp}")
+        return corrected_timestamp
 
 if __name__ == "__main__":
     """Main function to handle command line arguments and execute visualization."""

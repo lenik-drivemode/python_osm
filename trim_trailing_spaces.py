@@ -3,7 +3,7 @@
 Script to trim trailing spaces from all Python files in the current directory.
 """
 
-import os
+import sys
 import glob
 
 def trim_trailing_spaces_from_file(filepath):
@@ -42,14 +42,13 @@ def trim_trailing_spaces_from_file(filepath):
         print(f"Error processing {filepath}: {e}")
         return False
 
-def main():
-    """Find all Python files and trim trailing spaces."""
+if __name__ == "__main__":
     # Get all Python files in current directory
     python_files = glob.glob('*.py')
 
     if not python_files:
         print("No Python files found in current directory.")
-        return
+        sys.exit(0)
 
     print(f"Found {len(python_files)} Python files to check...")
 
@@ -59,12 +58,9 @@ def main():
         print(f"Checking {py_file}...", end=' ')
 
         if trim_trailing_spaces_from_file(py_file):
-            print("✓ Modified (trailing spaces removed)")
+            print("Modified (trailing spaces removed)")
             modified_count += 1
         else:
-            print("✓ Clean (no trailing spaces)")
+            print("Clean (no trailing spaces)")
 
     print(f"\nSummary: {modified_count} files modified, {len(python_files) - modified_count} files were already clean.")
-
-if __name__ == "__main__":
-    main()

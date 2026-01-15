@@ -30,8 +30,8 @@ def parse_android_log_speed_data(logd_folder):
         speeds_kmh = []
         coordinates = []
         
-        # Pattern to match NMEA sentences in Android logs
-        nmea_pattern = re.compile(r'\$G[PN][A-Z]{3}[^\r\n]*')
+        # Enhanced pattern to match NMEA sentences in Android logs - more flexible
+        nmea_pattern = re.compile(r'\$G[NP][A-Z]{3}[^$\r\n]*(?:\*[0-9A-F]{2})?')
         
         # Android log timestamp patterns
         timestamp_patterns = [
@@ -113,6 +113,10 @@ def parse_android_log_speed_data(logd_folder):
                                     continue
                                 break
                         
+                        # If no timestamp found, use a default one for debugging
+                        if log_timestamp is None:
+                            log_timestamp = datetime.now()
+                        
                         # Process each NMEA sentence found in the line
                         for nmea_sentence in nmea_matches:
                             try:
@@ -121,37 +125,38 @@ def parse_android_log_speed_data(logd_folder):
                                 if nmea_sentence.startswith('$GPVTG') or nmea_sentence.startswith('$GNVTG'):
                                     # VTG - Velocity Made Good
                                     parts = nmea_sentence.split(',')
+                                    
                                     if len(parts) >= 8:
                                         # VTG format: $GPVTG,course_t,T,course_m,M,speed_n,N,speed_k,K,mode*checksum
                                         speed_kmh_str = parts[7]  # Speed in km/h
                                         speed_knots_str = parts[5]  # Speed in knots (fallback)
-                                        mode = parts[8].split('*')[0] if len(parts) > 8 else ''
+                                        mode_field = parts[8] if len(parts) > 8 else ''
+                                        mode = mode_field.split('*')[0] if '*' in mode_field else mode_field
                                         
-                                        # Only use data with valid mode (A=Autonomous, D=Differential)
-                                        if mode and mode in ['A', 'D']:
-                                            try:
-                                                # Prefer km/h over knots for better accuracy
-                                                if speed_kmh_str and speed_kmh_str != '':
-                                                    current_speed = float(speed_kmh_str)
-                                                elif speed_knots_str and speed_knots_str != '':
-                                                    # Convert knots to km/h
-                                                    current_speed = float(speed_knots_str) * 1.852
-                                            except ValueError:
-                                                pass
+                                        # Process speed data even without strict mode validation for now
+                                        try:
+                                            # Prefer km/h over knots for better accuracy
+                                            if speed_kmh_str and speed_kmh_str != '' and speed_kmh_str != '0.000':
+                                                current_speed = float(speed_kmh_str)
+                                            elif speed_knots_str and speed_knots_str != '' and speed_knots_str != '0.000':
+                                                # Convert knots to km/h
+                                                current_speed = float(speed_knots_str) * 1.852
+                                        except ValueError:
+                                            pass
                                 
                                 elif nmea_sentence.startswith('$GPRMC') or nmea_sentence.startswith('$GNRMC'):
                                     # RMC - Recommended Minimum Course (fallback for speed)
                                     parts = nmea_sentence.split(',')
+                                    
                                     if len(parts) >= 8:
                                         status = parts[2]
                                         speed_knots_str = parts[7]  # Speed in knots
                                         
-                                        # Only use valid fixes
-                                        if status == 'A' and speed_knots_str:
+                                        # Only use valid fixes and if we don't have VTG speed
+                                        if status == 'A' and speed_knots_str and speed_knots_str != '' and current_speed is None:
                                             try:
                                                 # Convert knots to km/h (fallback if no VTG)
-                                                if current_speed is None:
-                                                    current_speed = float(speed_knots_str) * 1.852
+                                                current_speed = float(speed_knots_str) * 1.852
                                             except ValueError:
                                                 pass
                                 
@@ -185,8 +190,8 @@ def parse_android_log_speed_data(logd_folder):
                                                 except ValueError:
                                                     pass
                                 
-                                # If we have complete data and a timestamp, record it
-                                if log_timestamp and current_speed is not None:
+                                # If we have speed data and a timestamp, record it
+                                if current_speed is not None:
                                     # Only add if we have new data or significant time difference
                                     if (not timestamps or 
                                         abs((log_timestamp - timestamps[-1]).total_seconds()) > 1):

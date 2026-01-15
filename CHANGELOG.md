@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Optional point filtering with `--filter` command line flag
+- Conditional GPS point filtering based on time (1 second) and distance (11 meter) thresholds
+- Better control over track detail and smoothness through optional filtering
 - Extended KML format support with gx:Track elements for enhanced GPS data visualization
 - Speed data inclusion in KML tracks with values in km/h for each track point
 - Elevation data integration using altitude values from GPS coordinates  
@@ -47,6 +50,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - High-quality KML output compatible with Google Earth and other mapping apps
 
 ### Changed
+- Reduced time filtering threshold from 1 second to 100 milliseconds for higher temporal precision when --filter is used
+- Further reduced distance filtering threshold from 1.1 meters to 11 centimeters for very high precision tracks when --filter is used
+- Reduced distance filtering threshold from 11 meters to 1.1 meters for more detailed tracks when --filter is used
+- Point filtering is now optional and disabled by default for more detailed tracks
+- Improved track smoothness by removing automatic coordinate filtering
+- Enhanced user control over GPS data processing with --filter flag
 - Migrated from basic LineString KML elements to extended gx:Track format for richer data visualization
 - Improved KML output with comprehensive GPS metadata including speed, elevation, and bearing
 - Enhanced Google Earth compatibility with proper extended data schema definitions

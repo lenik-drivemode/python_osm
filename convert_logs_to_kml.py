@@ -16,7 +16,7 @@ import glob
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
 
-def parse_android_logs_for_coordinates(logd_folder, filter_date=None, include_raw=False):
+def parse_android_logs_for_coordinates(logd_folder, filter_date=None, include_raw=False, apply_filter=False):
     """
     Parse Android log files and extract GPS coordinates from NMEA messages.
     Creates separate tracks when data gaps exceed 10 minutes.
@@ -25,6 +25,7 @@ def parse_android_logs_for_coordinates(logd_folder, filter_date=None, include_ra
         logd_folder (str): Path to the logd folder containing Android log files
         filter_date (date, optional): Filter data by specific date
         include_raw (bool): Whether to include raw coordinates (s:1*78) tracks
+        apply_filter (bool): Whether to apply point filtering based on time and distance
         
     Returns:
         list: List of tracks, where each track is a list of tuples (timestamp, longitude, latitude, altitude, speed, course)
@@ -288,11 +289,16 @@ def parse_android_logs_for_coordinates(logd_folder, filter_date=None, include_ra
                                         
                                         if is_raw_message:
                                             # Handle raw coordinates track
-                                            # Only add if we have new coordinates or significant time difference
-                                            if (not current_raw_track or 
-                                                abs((log_timestamp - current_raw_track[-1][0]).total_seconds()) > 1 or
-                                                abs(current_lat - current_raw_track[-1][2]) > 0.0001 or
-                                                abs(current_lon - current_raw_track[-1][1]) > 0.0001):
+                                            # Apply filtering only if requested
+                                            should_add_raw = not current_raw_track
+                                            if current_raw_track and apply_filter:
+                                                should_add_raw = (abs((log_timestamp - current_raw_track[-1][0]).total_seconds()) > 0.1 or
+                                                                abs(current_lat - current_raw_track[-1][2]) > 0.000001 or
+                                                                abs(current_lon - current_raw_track[-1][1]) > 0.000001)
+                                            elif current_raw_track:
+                                                should_add_raw = True  # Always add if no filtering
+                                            
+                                            if should_add_raw:
                                                 
                                                 current_raw_track.append((
                                                     log_timestamp,
@@ -306,11 +312,16 @@ def parse_android_logs_for_coordinates(logd_folder, filter_date=None, include_ra
                                                 last_raw_timestamp = log_timestamp
                                         else:
                                             # Handle regular track
-                                            # Only add if we have new coordinates or significant time difference
-                                            if (not current_track or 
-                                                abs((log_timestamp - current_track[-1][0]).total_seconds()) > 1 or
-                                                abs(current_lat - current_track[-1][2]) > 0.0001 or
-                                                abs(current_lon - current_track[-1][1]) > 0.0001):
+                                            # Apply filtering only if requested
+                                            should_add = not current_track
+                                            if current_track and apply_filter:
+                                                should_add = (abs((log_timestamp - current_track[-1][0]).total_seconds()) > 0.1 or
+                                                            abs(current_lat - current_track[-1][2]) > 0.000001 or
+                                                            abs(current_lon - current_track[-1][1]) > 0.000001)
+                                            elif current_track:
+                                                should_add = True  # Always add if no filtering
+                                            
+                                            if should_add:
                                                 
                                                 current_track.append((
                                                     log_timestamp,
@@ -565,6 +576,10 @@ Examples:
                        action='store_true',
                        help='Include raw coordinates (s:1*78) tracks in the output')
     
+    parser.add_argument('--filter',
+                       action='store_true',
+                       help='Apply point filtering based on time (100ms) and distance (11cm) thresholds')
+    
     parser.add_argument('--version',
                        action='version',
                        version='Android Logs to KML Converter 1.0.0')
@@ -585,7 +600,7 @@ Examples:
     raw_filter_str = " (including raw coordinates)" if args.raw else ""
     print(f"Extracting GPS coordinates from {args.logd_folder}{date_filter_str}{raw_filter_str}")
     
-    tracks = parse_android_logs_for_coordinates(args.logd_folder, args.date, args.raw)
+    tracks = parse_android_logs_for_coordinates(args.logd_folder, args.date, args.raw, args.filter)
     
     if not tracks or not any(track.get('coordinates', []) for track in tracks):
         print("No GPS coordinates found in log files.")

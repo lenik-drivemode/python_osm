@@ -13,8 +13,6 @@ import sys
 import os
 import re
 import glob
-import xml.etree.ElementTree as ET
-from xml.dom import minidom
 
 def parse_android_logs_for_coordinates(logd_folder, filter_date=None, include_raw=False, apply_filter=True):
     """

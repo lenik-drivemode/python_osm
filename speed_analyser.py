@@ -682,7 +682,7 @@ def detect_file_type(filepath):
 
 def plot_speed_data(timestamps, speeds_kmh, bearings=None, coordinates=None, title="GPS Speed Data", filepath=None, show_bearing=False):
     """
-    Create a plot showing speed over time, optionally with bearing accuracy.
+    Create a plot showing speed over time, optionally with bearing accuracy on dual y-axes.
 
     Args:
         timestamps (list): List of datetime objects
@@ -691,48 +691,42 @@ def plot_speed_data(timestamps, speeds_kmh, bearings=None, coordinates=None, tit
         coordinates (list, optional): List of coordinate tuples
         title (str): Plot title
         filepath (str, optional): Path to save the plot
-        show_bearing (bool): Whether to show bearing accuracy subplot
+        show_bearing (bool): Whether to show bearing accuracy on second y-axis
     """
     if not timestamps or not speeds_kmh:
         print("No speed data to plot")
         return
 
     # Create the plot
+    fig, ax1 = plt.subplots(figsize=(12, 8))
+
+    # Speed plot on primary y-axis
+    line1 = ax1.plot(timestamps, speeds_kmh, 'g-', linewidth=1,
+            label='Speed (km/h)', alpha=0.8)
+
+    ax1.set_xlabel('Time', fontsize=12)
+    ax1.set_ylabel('Speed (km/h)', fontsize=12, color='green')
+    ax1.set_title(title, fontsize=14, pad=20)
+    ax1.grid(True, alpha=0.3)
+    ax1.tick_params(axis='y', labelcolor='green')
+
+    # Format x-axis dates
+    ax1.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
+    ax1.xaxis.set_major_locator(mdates.MinuteLocator(interval=5))
+    plt.setp(ax1.xaxis.get_majorticklabels(), rotation=45, ha='right')
+
+    # Set y-axis limits for speed
+    if speeds_kmh:
+        max_speed = max(speeds_kmh)
+        ax1.set_ylim(0, max_speed * 1.1)
+
+    lines = line1
+    labels = ['Speed (km/h)']
+
+    # Add bearing accuracy plot on secondary y-axis if requested
     if show_bearing and bearings and coordinates:
-        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10))
+        ax2 = ax1.twinx()  # Create second y-axis
 
-        # Speed plot
-        ax1.plot(timestamps, speeds_kmh, 'g-', linewidth=2,
-                label='Speed (km/h)', marker='o', markersize=3, alpha=0.8)
-
-        ax1.set_ylabel('Speed (km/h)', fontsize=12)
-        ax1.set_title(title, fontsize=14, pad=20)
-        ax1.legend(fontsize=11)
-        ax1.grid(True, alpha=0.3)
-        ax1.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
-        ax1.xaxis.set_major_locator(mdates.MinuteLocator(interval=5))
-
-        # Set y-axis limits for speed
-        if speeds_kmh:
-            max_speed = max(speeds_kmh)
-            ax1.set_ylim(0, max_speed * 1.1)
-
-        # Add speed statistics
-        if speeds_kmh:
-            avg_speed = np.mean(speeds_kmh)
-            max_speed = max(speeds_kmh)
-            min_speed = min(speeds_kmh)
-
-            stats_text = f"Avg Speed: {avg_speed:.1f} km/h\n"
-            stats_text += f"Max Speed: {max_speed:.1f} km/h\n"
-            stats_text += f"Min Speed: {min_speed:.1f} km/h\n"
-            stats_text += f"Data Points: {len(timestamps)}"
-
-            ax1.text(0.02, 0.98, stats_text, transform=ax1.transAxes,
-                   fontsize=10, verticalalignment='top',
-                   bbox=dict(boxstyle='round', facecolor='lightgreen', alpha=0.8))
-
-        # Bearing accuracy plot
         bearing_accuracy = calculate_bearing_accuracy(coordinates, bearings)
         if bearing_accuracy:
             # Filter out None values for plotting
@@ -744,74 +738,47 @@ def plot_speed_data(timestamps, speeds_kmh, bearings=None, coordinates=None, tit
                     filtered_accuracy.append(acc)
 
             if filtered_accuracy:
-                ax2.plot(filtered_times, filtered_accuracy, 'r-', linewidth=2,
-                        label='Bearing Accuracy Error (degrees)', marker='o', markersize=3, alpha=0.8)
+                line2 = ax2.plot(filtered_times, filtered_accuracy, 'r-', linewidth=1,
+                        label='Bearing Error (°)', alpha=0.8)
 
-                ax2.set_xlabel('Time', fontsize=12)
-                ax2.set_ylabel('Bearing Error (degrees)', fontsize=12)
-                ax2.set_title('Bearing Accuracy (NMEA vs Calculated)', fontsize=12)
-                ax2.legend(fontsize=11)
-                ax2.grid(True, alpha=0.3)
-                ax2.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
-                ax2.xaxis.set_major_locator(mdates.MinuteLocator(interval=5))
+                ax2.set_ylabel('Bearing Error (degrees)', fontsize=12, color='red')
+                ax2.tick_params(axis='y', labelcolor='red')
+
+                lines += line2
+                labels.append('Bearing Error (°)')
 
                 # Add bearing statistics
                 avg_error = np.mean(filtered_accuracy)
                 max_error = max(filtered_accuracy)
                 min_error = min(filtered_accuracy)
 
-                bearing_stats_text = f"Avg Error: {avg_error:.1f}°\n"
+                bearing_stats_text = f"Bearing Stats:\n"
+                bearing_stats_text += f"Avg Error: {avg_error:.1f}°\n"
                 bearing_stats_text += f"Max Error: {max_error:.1f}°\n"
-                bearing_stats_text += f"Min Error: {min_error:.1f}°\n"
-                bearing_stats_text += f"Data Points: {len(filtered_accuracy)}"
+                bearing_stats_text += f"Min Error: {min_error:.1f}°"
 
-                ax2.text(0.02, 0.98, bearing_stats_text, transform=ax2.transAxes,
-                       fontsize=10, verticalalignment='top',
+                ax2.text(0.98, 0.98, bearing_stats_text, transform=ax2.transAxes,
+                       fontsize=9, verticalalignment='top', horizontalalignment='right',
                        bbox=dict(boxstyle='round', facecolor='lightcoral', alpha=0.8))
-            else:
-                ax2.text(0.5, 0.5, 'No bearing accuracy data available',
-                        ha='center', va='center', transform=ax2.transAxes)
 
-        plt.setp(ax1.xaxis.get_majorticklabels(), rotation=45, ha='right')
-        plt.setp(ax2.xaxis.get_majorticklabels(), rotation=45, ha='right')
-    else:
-        fig, ax = plt.subplots(figsize=(12, 8))
+    # Add speed statistics
+    if speeds_kmh:
+        avg_speed = np.mean(speeds_kmh)
+        max_speed = max(speeds_kmh)
+        min_speed = min(speeds_kmh)
 
-        # Plot the speed data
-        ax.plot(timestamps, speeds_kmh, 'g-', linewidth=2,
-                label='Speed (km/h)', marker='o', markersize=3, alpha=0.8)
+        stats_text = f"Speed Stats:\n"
+        stats_text += f"Avg: {avg_speed:.1f} km/h\n"
+        stats_text += f"Max: {max_speed:.1f} km/h\n"
+        stats_text += f"Min: {min_speed:.1f} km/h\n"
+        stats_text += f"Points: {len(timestamps)}"
 
-        # Customize the plot
-        ax.set_xlabel('Time', fontsize=12)
-        ax.set_ylabel('Speed (km/h)', fontsize=12)
-        ax.set_title(title, fontsize=14, pad=20)
-        ax.legend(fontsize=11)
-        ax.grid(True, alpha=0.3)
+        ax1.text(0.02, 0.98, stats_text, transform=ax1.transAxes,
+               fontsize=9, verticalalignment='top',
+               bbox=dict(boxstyle='round', facecolor='lightgreen', alpha=0.8))
 
-        # Format x-axis dates
-        ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
-        ax.xaxis.set_major_locator(mdates.MinuteLocator(interval=5))
-        plt.setp(ax.xaxis.get_majorticklabels(), rotation=45, ha='right')
-
-        # Set y-axis limits
-        if speeds_kmh:
-            max_speed = max(speeds_kmh)
-            ax.set_ylim(0, max_speed * 1.1)
-
-        # Add statistics
-        if speeds_kmh:
-            avg_speed = np.mean(speeds_kmh)
-            max_speed = max(speeds_kmh)
-            min_speed = min(speeds_kmh)
-
-            stats_text = f"Avg Speed: {avg_speed:.1f} km/h\n"
-            stats_text += f"Max Speed: {max_speed:.1f} km/h\n"
-            stats_text += f"Min Speed: {min_speed:.1f} km/h\n"
-            stats_text += f"Data Points: {len(timestamps)}"
-
-            ax.text(0.02, 0.98, stats_text, transform=ax.transAxes,
-                   fontsize=10, verticalalignment='top',
-                   bbox=dict(boxstyle='round', facecolor='lightgreen', alpha=0.8))
+    # Create combined legend
+    ax1.legend(lines, labels, loc='upper center', bbox_to_anchor=(0.5, -0.05), ncol=len(labels))
 
     plt.tight_layout()
 
@@ -840,29 +807,24 @@ def create_detailed_speed_analysis(timestamps, speeds_kmh, bearings=None, coordi
 
     if show_bearing and bearings and coordinates:
         fig = plt.figure(figsize=(15, 12))
-        gs = fig.add_gridspec(3, 2, height_ratios=[1, 1, 1])
+        gs = fig.add_gridspec(3, 2, height_ratios=[1.5, 1, 1])
 
-        # Speed over time
+        # Speed and bearing accuracy over time (combined plot with dual y-axes)
         ax1 = fig.add_subplot(gs[0, :])
-        ax1.plot(timestamps, speeds_kmh, 'g-', linewidth=2, alpha=0.8)
-        ax1.set_title('Speed Over Time', fontsize=12)
-        ax1.set_ylabel('Speed (km/h)')
+
+        # Speed on primary y-axis
+        line1 = ax1.plot(timestamps, speeds_kmh, 'g-', linewidth=1, alpha=0.8, label='Speed (km/h)')
+        ax1.set_ylabel('Speed (km/h)', fontsize=12, color='green')
+        ax1.tick_params(axis='y', labelcolor='green')
         ax1.grid(True, alpha=0.3)
         ax1.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
 
-        # Speed distribution histogram
-        ax2 = fig.add_subplot(gs[1, 0])
-        ax2.hist(speeds_kmh, bins=30, alpha=0.7, color='green', edgecolor='black')
-        ax2.set_title('Speed Distribution', fontsize=12)
-        ax2.set_xlabel('Speed (km/h)')
-        ax2.set_ylabel('Frequency')
-        ax2.grid(True, alpha=0.3)
-        ax2.axvline(np.mean(speeds_kmh), color='red', linestyle='--', label=f'Mean: {np.mean(speeds_kmh):.1f}')
-        ax2.legend()
-
-        # Bearing accuracy over time
-        ax3 = fig.add_subplot(gs[1, 1])
+        # Bearing accuracy on secondary y-axis
+        ax1_twin = ax1.twinx()
         bearing_accuracy = calculate_bearing_accuracy(coordinates, bearings)
+        lines = line1
+        labels = ['Speed (km/h)']
+
         if bearing_accuracy:
             filtered_times = []
             filtered_accuracy = []
@@ -872,19 +834,42 @@ def create_detailed_speed_analysis(timestamps, speeds_kmh, bearings=None, coordi
                     filtered_accuracy.append(acc)
 
             if filtered_accuracy:
-                ax3.plot(filtered_times, filtered_accuracy, 'r-', linewidth=2, alpha=0.8)
-                ax3.set_title('Bearing Accuracy Error', fontsize=12)
-                ax3.set_ylabel('Error (degrees)')
-                ax3.grid(True, alpha=0.3)
-                ax3.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
-            else:
-                ax3.text(0.5, 0.5, 'No bearing accuracy data', ha='center', va='center', transform=ax3.transAxes)
+                line2 = ax1_twin.plot(filtered_times, filtered_accuracy, 'r-', linewidth=1, alpha=0.8, label='Bearing Error (°)')
+                ax1_twin.set_ylabel('Bearing Error (degrees)', fontsize=12, color='red')
+                ax1_twin.tick_params(axis='y', labelcolor='red')
+                lines += line2
+                labels.append('Bearing Error (°)')
+
+        ax1.set_title('Speed and Bearing Accuracy Over Time', fontsize=14)
+        ax1.legend(lines, labels, loc='upper left')
+
+        # Speed distribution histogram
+        ax2 = fig.add_subplot(gs[1, 0])
+        ax2.hist(speeds_kmh, bins=30, alpha=0.7, color='green', edgecolor='black')
+        ax2.set_title('Speed Distribution', fontsize=12)
+        ax2.set_xlabel('Speed (km/h)')
+        ax2.set_ylabel('Frequency')
+        ax2.grid(True, alpha=0.3)
+        ax2.axvline(np.mean(speeds_kmh), color='red', linestyle='--', linewidth=1, label=f'Mean: {np.mean(speeds_kmh):.1f}')
+        ax2.legend()
+
+        # Bearing accuracy distribution
+        ax3 = fig.add_subplot(gs[1, 1])
+        if bearing_accuracy and filtered_accuracy:
+            ax3.hist(filtered_accuracy, bins=20, alpha=0.7, color='red', edgecolor='black')
+            ax3.set_title('Bearing Error Distribution', fontsize=12)
+            ax3.set_xlabel('Error (degrees)')
+            ax3.set_ylabel('Frequency')
+            ax3.grid(True, alpha=0.3)
+            ax3.axvline(np.mean(filtered_accuracy), color='darkred', linestyle='--', linewidth=1,
+                       label=f'Mean: {np.mean(filtered_accuracy):.1f}°')
+            ax3.legend()
         else:
             ax3.text(0.5, 0.5, 'No bearing accuracy data', ha='center', va='center', transform=ax3.transAxes)
 
         # Speed vs time scatter plot
         ax4 = fig.add_subplot(gs[2, 0])
-        scatter = ax4.scatter(timestamps, speeds_kmh, c=speeds_kmh, cmap='viridis', alpha=0.6, s=20)
+        scatter = ax4.scatter(timestamps, speeds_kmh, c=speeds_kmh, cmap='viridis', alpha=0.6, s=15)
         ax4.set_title('Speed Data Points', fontsize=12)
         ax4.set_ylabel('Speed (km/h)')
         ax4.grid(True, alpha=0.3)
@@ -899,7 +884,7 @@ def create_detailed_speed_analysis(timestamps, speeds_kmh, bearings=None, coordi
             distances = [speeds_kmh[i] * time_diffs[i-1] for i in range(1, len(speeds_kmh))]  # km
             cumulative_distance = np.cumsum([0] + distances)
 
-            ax5.plot(timestamps, cumulative_distance, 'b-', linewidth=2)
+            ax5.plot(timestamps, cumulative_distance, 'b-', linewidth=1)
             ax5.set_title('Cumulative Distance', fontsize=12)
             ax5.set_ylabel('Distance (km)')
             ax5.grid(True, alpha=0.3)
@@ -918,7 +903,7 @@ def create_detailed_speed_analysis(timestamps, speeds_kmh, bearings=None, coordi
         fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 10))
 
         # Main time series plot
-        ax1.plot(timestamps, speeds_kmh, 'g-', linewidth=2, alpha=0.8)
+        ax1.plot(timestamps, speeds_kmh, 'g-', linewidth=1, alpha=0.8)
         ax1.set_title('Speed Over Time', fontsize=12)
         ax1.set_ylabel('Speed (km/h)')
         ax1.grid(True, alpha=0.3)
@@ -930,11 +915,11 @@ def create_detailed_speed_analysis(timestamps, speeds_kmh, bearings=None, coordi
         ax2.set_xlabel('Speed (km/h)')
         ax2.set_ylabel('Frequency')
         ax2.grid(True, alpha=0.3)
-        ax2.axvline(np.mean(speeds_kmh), color='red', linestyle='--', label=f'Mean: {np.mean(speeds_kmh):.1f}')
+        ax2.axvline(np.mean(speeds_kmh), color='red', linestyle='--', linewidth=1, label=f'Mean: {np.mean(speeds_kmh):.1f}')
         ax2.legend()
 
         # Speed vs time scatter plot (colored by speed)
-        scatter = ax3.scatter(timestamps, speeds_kmh, c=speeds_kmh, cmap='viridis', alpha=0.6, s=20)
+        scatter = ax3.scatter(timestamps, speeds_kmh, c=speeds_kmh, cmap='viridis', alpha=0.6, s=15)
         ax3.set_title('Speed Data Points (Colored by Speed)', fontsize=12)
         ax3.set_ylabel('Speed (km/h)')
         ax3.grid(True, alpha=0.3)
@@ -948,7 +933,7 @@ def create_detailed_speed_analysis(timestamps, speeds_kmh, bearings=None, coordi
             distances = [speeds_kmh[i] * time_diffs[i-1] for i in range(1, len(speeds_kmh))]  # km
             cumulative_distance = np.cumsum([0] + distances)
 
-            ax4.plot(timestamps, cumulative_distance, 'b-', linewidth=2)
+            ax4.plot(timestamps, cumulative_distance, 'b-', linewidth=1)
             ax4.set_title('Cumulative Distance', fontsize=12)
             ax4.set_ylabel('Distance (km)')
             ax4.grid(True, alpha=0.3)

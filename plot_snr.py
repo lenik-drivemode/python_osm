@@ -41,14 +41,14 @@ def get_satellite_id(gnss_id, sv_id):
 
 def parse_ubx_file(filename):
     """
-    Parse UBX file and extract satellite SNR data using pyubx2.
+    Parse UBX file and extract satellite signal level data using pyubx2.
 
     Args:
         filename (str): Path to the UBX file
 
     Returns:
         tuple: (timestamps, satellite_data)
-        satellite_data is a dict with satellite IDs as keys and lists of (timestamp, snr) tuples as values
+        satellite_data is a dict with satellite IDs as keys and lists of (timestamp, signal_level) tuples as values
     """
     satellite_data = defaultdict(list)
     timestamps = []
@@ -128,6 +128,9 @@ def parse_ubx_file(filename):
                             gnss_id_attr = f'gnssId_{i:02d}'
                             sv_id_attr = f'svId_{i:02d}'
                             cno_attr = f'cno_{i:02d}'
+                            # Look for signal strength attributes
+                            pr_res_attr = f'prRes_{i:02d}'  # Pseudorange residual
+                            quality_attr = f'qualityInd_{i:02d}'  # Quality indicator
 
                             if (hasattr(parsed_data, gnss_id_attr) and
                                 hasattr(parsed_data, sv_id_attr) and
@@ -135,12 +138,23 @@ def parse_ubx_file(filename):
 
                                 gnss_id = getattr(parsed_data, gnss_id_attr)
                                 sv_id = getattr(parsed_data, sv_id_attr)
-                                cno = getattr(parsed_data, cno_attr)  # C/N0 in dB-Hz
+                                cno = getattr(parsed_data, cno_attr)  # C/N0 in dB-Hz (signal level)
 
-                                # Only include satellites with valid SNR
-                                if cno > 0:
+                                # Get additional signal quality metrics if available
+                                signal_level = cno  # Default to C/N0
+
+                                # Try to get quality indicator for better signal assessment
+                                if hasattr(parsed_data, quality_attr):
+                                    quality = getattr(parsed_data, quality_attr)
+                                    # Quality indicator: 0=no signal, 1-4=increasing quality
+                                    # We can use this to adjust signal level interpretation
+                                    if quality == 0:
+                                        continue  # Skip satellites with no signal
+
+                                # Only include satellites with valid signal level
+                                if signal_level > 0:
                                     sat_id = get_satellite_id(gnss_id, sv_id)
-                                    satellite_data[sat_id].append((timestamp, cno))
+                                    satellite_data[sat_id].append((timestamp, signal_level))
 
                                     if timestamp not in timestamps:
                                         timestamps.append(timestamp)
@@ -167,19 +181,19 @@ def parse_ubx_file(filename):
         traceback.print_exc()
         return [], {}
 
-def plot_snr_data(timestamps, satellite_data, title="Satellite SNR Over Time", filepath=None, constellation_filter=None):
+def plot_signal_data(timestamps, satellite_data, title="Satellite Signal Levels Over Time", filepath=None, constellation_filter=None):
     """
-    Create a plot showing satellite SNR over time.
+    Create a plot showing satellite signal levels over time.
 
     Args:
         timestamps (list): List of datetime objects
-        satellite_data (dict): Dictionary with satellite IDs as keys and (timestamp, snr) lists as values
+        satellite_data (dict): Dictionary with satellite IDs as keys and lists of (timestamp, signal_level) lists as values
         title (str): Plot title
         filepath (str, optional): Path to save the plot
         constellation_filter (list, optional): List of constellation names to filter (e.g., ['GPS', 'Galileo'])
     """
     if not satellite_data:
-        print("No satellite SNR data to plot")
+        print("No satellite signal data to plot")
         return
 
     # Filter by constellation if specified
@@ -226,17 +240,22 @@ def plot_snr_data(timestamps, satellite_data, title="Satellite SNR Over Time", f
             if not data_points:
                 continue
 
-            times, snrs = zip(*data_points)
+            times, signal_levels = zip(*data_points)
             color = colors[i] if len(sat_list) > 1 else colors
 
-            ax.plot(times, snrs, 'o-', color=color, label=sat_id,
+            ax.plot(times, signal_levels, 'o-', color=color, label=sat_id,
                     linewidth=1, markersize=2, alpha=0.7)
 
     # Customize the plot
     ax.set_xlabel('Time', fontsize=12)
-    ax.set_ylabel('Signal Strength (dB-Hz)', fontsize=12)
+    ax.set_ylabel('Signal Level (dB-Hz)', fontsize=12)
     ax.set_title(title, fontsize=14, pad=20)
     ax.grid(True, alpha=0.3)
+
+    # Add signal quality reference lines
+    ax.axhline(y=35, color='red', linestyle='--', alpha=0.5, label='Minimum for navigation')
+    ax.axhline(y=40, color='orange', linestyle='--', alpha=0.5, label='Good signal')
+    ax.axhline(y=45, color='green', linestyle='--', alpha=0.5, label='Excellent signal')
 
     # Format x-axis dates
     if timestamps:
@@ -253,16 +272,26 @@ def plot_snr_data(timestamps, satellite_data, title="Satellite SNR Over Time", f
 
     plt.setp(ax.xaxis.get_majorticklabels(), rotation=45, ha='right')
 
-    # Set y-axis limits
-    all_snrs = [snr for data in satellite_data.values() for _, snr in data]
-    if all_snrs:
-        min_snr = min(all_snrs)
-        max_snr = max(all_snrs)
-        ax.set_ylim(max(0, min_snr - 5), max_snr + 5)
+    # Set y-axis limits with focus on typical signal ranges
+    all_signals = [signal for data in satellite_data.values() for _, signal in data]
+    if all_signals:
+        min_signal = max(0, min(all_signals) - 5)  # Don't go below 0
+        max_signal = max(all_signals) + 5
+        # Ensure we show at least the 25-55 dB-Hz range (typical for GNSS)
+        min_signal = min(min_signal, 25)
+        max_signal = max(max_signal, 55)
+        ax.set_ylim(min_signal, max_signal)
 
     # Add legend (organized by constellation)
     handles, labels = ax.get_legend_handles_labels()
-    if len(labels) > 30:  # Too many satellites for readable legend
+
+    # Separate reference lines from satellite data in legend
+    reference_handles = handles[-3:]  # Last 3 are the reference lines
+    reference_labels = labels[-3:]
+    sat_handles = handles[:-3]
+    sat_labels = labels[:-3]
+
+    if len(sat_labels) > 25:  # Too many satellites for readable legend
         # Create constellation legend instead
         constellation_handles = []
         constellation_labels = []
@@ -275,12 +304,15 @@ def plot_snr_data(timestamps, satellite_data, title="Satellite SNR Over Time", f
             constellation_handles.append(handle)
             constellation_labels.append(f"{constellation} ({len(constellation_sats[constellation])} sats)")
 
-        ax.legend(constellation_handles, constellation_labels,
+        # Combine constellation and reference legends
+        all_handles = constellation_handles + reference_handles
+        all_labels = constellation_labels + reference_labels
+        ax.legend(all_handles, all_labels,
                  bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=9)
     else:
         ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left', ncol=1, fontsize=8)
 
-    # Add statistics
+    # Add statistics with signal quality assessment
     stats_text = f"Satellites: {len(satellite_data)}\n"
     if constellation_filter:
         stats_text += f"Constellations: {', '.join(constellation_filter)}\n"
@@ -290,12 +322,30 @@ def plot_snr_data(timestamps, satellite_data, title="Satellite SNR Over Time", f
     if timestamps:
         duration = timestamps[-1] - timestamps[0]
         stats_text += f"Duration: {duration}\n"
-    if all_snrs:
-        stats_text += f"SNR Range: {min(all_snrs):.1f} - {max(all_snrs):.1f} dB-Hz\n"
-        stats_text += f"Avg SNR: {np.mean(all_snrs):.1f} dB-Hz"
 
-    ax.text(0.02, 0.98, stats_text, transform=ax.transAxes,
-           fontsize=9, verticalalignment='top',
+    if all_signals:
+        min_sig = min(all_signals)
+        max_sig = max(all_signals)
+        avg_sig = np.mean(all_signals)
+
+        stats_text += f"Signal Range: {min_sig:.1f} - {max_sig:.1f} dB-Hz\n"
+        stats_text += f"Avg Signal: {avg_sig:.1f} dB-Hz\n"
+
+        # Signal quality assessment
+        excellent_count = sum(1 for s in all_signals if s >= 45)
+        good_count = sum(1 for s in all_signals if 40 <= s < 45)
+        fair_count = sum(1 for s in all_signals if 35 <= s < 40)
+        poor_count = sum(1 for s in all_signals if s < 35)
+        total_count = len(all_signals)
+
+        stats_text += f"\nSignal Quality:\n"
+        stats_text += f"Excellent (≥45): {excellent_count/total_count*100:.1f}%\n"
+        stats_text += f"Good (40-44): {good_count/total_count*100:.1f}%\n"
+        stats_text += f"Fair (35-39): {fair_count/total_count*100:.1f}%\n"
+        stats_text += f"Poor (<35): {poor_count/total_count*100:.1f}%"
+
+    ax.text(0.02, 0.02, stats_text, transform=ax.transAxes,
+           fontsize=8, verticalalignment='bottom',
            bbox=dict(boxstyle='round', facecolor='lightblue', alpha=0.8))
 
     plt.tight_layout()
@@ -303,21 +353,21 @@ def plot_snr_data(timestamps, satellite_data, title="Satellite SNR Over Time", f
     if filepath:
         plt.savefig(filepath, bbox_inches='tight', dpi=300,
                    facecolor='white', edgecolor='none')
-        print(f"SNR plot saved to {filepath}")
+        print(f"Signal level plot saved to {filepath}")
     else:
         plt.show()
 
 def main():
     """Main function to handle command line arguments and execute visualization."""
     parser = argparse.ArgumentParser(
-        description='Parse UBX files and visualize satellite SNR data over time using pyubx2',
+        description='Parse UBX files and visualize satellite signal levels over time using pyubx2',
         epilog='''
 Examples:
   %(prog)s gps_data.ubx
-  %(prog)s gps_data.ubx -o snr_plot.png
-  %(prog)s gps_data.ubx --title "Satellite SNR Analysis"
+  %(prog)s gps_data.ubx -o signal_plot.png
+  %(prog)s gps_data.ubx --title "Satellite Signal Analysis"
   %(prog)s gps_data.ubx --constellation GPS Galileo
-  %(prog)s gps_data.ubx --constellation GPS -o gps_only_snr.png
+  %(prog)s gps_data.ubx --constellation GPS -o gps_only_signals.png
         ''',
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
@@ -329,8 +379,8 @@ Examples:
                        help='Output file path for saving the plot (PNG format)')
 
     parser.add_argument('--title',
-                       default='Satellite SNR Over Time',
-                       help='Title for the plot (default: Satellite SNR Over Time)')
+                       default='Satellite Signal Levels Over Time',
+                       help='Title for the plot (default: Satellite Signal Levels Over Time)')
 
     parser.add_argument('--constellation',
                        nargs='*',
@@ -339,7 +389,7 @@ Examples:
 
     parser.add_argument('--version',
                        action='version',
-                       version='UBX SNR Analyzer 2.0.0 (pyubx2)')
+                       version='UBX Signal Level Analyzer 2.0.0 (pyubx2)')
 
     args = parser.parse_args()
 
@@ -348,7 +398,7 @@ Examples:
         print(f"Error: UBX file '{args.ubx_file}' not found.")
         sys.exit(1)
 
-    print(f"Analyzing satellite SNR data from {args.ubx_file}")
+    print(f"Analyzing satellite signal levels from {args.ubx_file}")
     if args.constellation:
         print(f"Filtering constellations: {', '.join(args.constellation)}")
 
@@ -356,15 +406,15 @@ Examples:
     timestamps, satellite_data = parse_ubx_file(args.ubx_file)
 
     if not satellite_data:
-        print("No satellite SNR data found in UBX file.")
+        print("No satellite signal data found in UBX file.")
         sys.exit(1)
 
-    print(f"Found SNR data for {len(satellite_data)} satellites")
+    print(f"Found signal data for {len(satellite_data)} satellites")
     if timestamps:
         print(f"Time range: {timestamps[0]} to {timestamps[-1]}")
 
     # Create visualization
-    plot_snr_data(timestamps, satellite_data, args.title, args.output, args.constellation)
+    plot_signal_data(timestamps, satellite_data, args.title, args.output, args.constellation)
 
 if __name__ == "__main__":
     main()

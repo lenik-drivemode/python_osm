@@ -407,14 +407,14 @@ def parse_ubx_file(filename):
         traceback.print_exc()
         return [], {}
 
-def plot_signal_data(timestamps, satellite_data, title="Satellite Signal Levels Over Time", filepath=None, constellation_filter=None):
+def plot_signal_data(timestamps, satellite_data, title="GNSS Signal Levels", filepath=None, constellation_filter=None):
     """
     Create a plot showing satellite signal levels over time.
 
     Args:
         timestamps (list): List of datetime objects
         satellite_data (dict): Dictionary with satellite IDs as keys and lists of (timestamp, signal_level) lists as values
-        title (str): Plot title
+        title (str): Plot title (will be overridden with dynamic title)
         filepath (str, optional): Path to save the plot
         constellation_filter (list, optional): List of constellation names to filter (e.g., ['GPS', 'Galileo'])
     """
@@ -434,6 +434,18 @@ def plot_signal_data(timestamps, satellite_data, title="Satellite Signal Levels 
         if not satellite_data:
             print(f"No satellites found for constellations: {constellation_filter}")
             return
+
+    # Create dynamic title with time range - first timestamp always full
+    if timestamps:
+        ts_from = timestamps[0].strftime('%Y-%m-%d %H:%M:%S')  # Always full format for start
+        # End timestamp format depends on whether dates are different
+        if timestamps[0].date() != timestamps[-1].date():
+            ts_to = timestamps[-1].strftime('%Y-%m-%d %H:%M:%S')
+        else:
+            ts_to = timestamps[-1].strftime('%H:%M:%S')
+        dynamic_title = f"{title}: {ts_from} to {ts_to}"
+    else:
+        dynamic_title = title
 
     fig, ax = plt.subplots(figsize=(14, 8))
 
@@ -507,7 +519,7 @@ def plot_signal_data(timestamps, satellite_data, title="Satellite Signal Levels 
     # Customize the plot
     ax.set_xlabel('Time', fontsize=12)
     ax.set_ylabel('Signal Level (dB-Hz)', fontsize=12)
-    ax.set_title(title, fontsize=14, pad=20)
+    ax.set_title(dynamic_title, fontsize=14, pad=20)
     ax.grid(True, alpha=0.3)
 
     # Add signal quality reference lines
@@ -637,8 +649,8 @@ Examples:
                        help='Output file path for saving the plot (PNG format)')
 
     parser.add_argument('--title',
-                       default='Satellite Signal Levels Over Time',
-                       help='Title for the plot (default: Satellite Signal Levels Over Time)')
+                       default='Satellite Signal Levels',
+                       help='Title for the plot (default: Satellite Signal Levels)')
 
     parser.add_argument('--constellation',
                        nargs='*',

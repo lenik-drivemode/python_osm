@@ -3,6 +3,7 @@
 This script reads UBX files from u-blox GNSS receivers and creates
 graphs showing Signal-to-Noise Ratio (SNR) for satellites over time.
 Each satellite is plotted with a different color.
+Supports both UBX binary messages and NMEA text messages as fallback.
 """
 
 import matplotlib.pyplot as plt
@@ -13,6 +14,7 @@ import sys
 import os
 import numpy as np
 from collections import defaultdict
+import re
 
 try:
     from pyubx2 import UBXReader, POLL
@@ -39,10 +41,141 @@ def get_satellite_id(gnss_id, sv_id):
     gnss_name = get_gnss_name(gnss_id)
     return f"{gnss_name}-{sv_id:02d}"
 
+def parse_nmea_satellite_data(filename):
+    """
+    Parse NMEA messages from UBX file to extract satellite SNR data.
+    Looks for GSV (Satellites in View) messages.
+
+    Args:
+        filename (str): Path to the UBX file
+
+    Returns:
+        tuple: (timestamps, satellite_data)
+    """
+    satellite_data = defaultdict(list)
+    timestamps = []
+    current_time = None
+
+    print("Falling back to NMEA message parsing...")
+
+    try:
+        with open(filename, 'rb') as file:
+            content = file.read()
+
+        # Look for NMEA sentences in the binary data
+        # NMEA sentences start with $ and end with \r\n
+        nmea_pattern = re.compile(rb'\$[A-Z0-9,.*\r\n]+', re.MULTILINE)
+        nmea_sentences = nmea_pattern.findall(content)
+
+        print(f"Found {len(nmea_sentences)} potential NMEA sentences")
+
+        for sentence_bytes in nmea_sentences:
+            try:
+                sentence = sentence_bytes.decode('ascii', errors='ignore').strip()
+                if not sentence:
+                    continue
+
+                # Parse RMC messages for time reference
+                if sentence.startswith('$GPRMC') or sentence.startswith('$GNRMC'):
+                    parts = sentence.split(',')
+                    if len(parts) >= 10:
+                        time_str = parts[1]  # HHMMSS.SS
+                        date_str = parts[9]  # DDMMYY
+
+                        if time_str and date_str and len(time_str) >= 6 and len(date_str) == 6:
+                            try:
+                                # Parse time
+                                hours = int(time_str[:2])
+                                minutes = int(time_str[2:4])
+                                seconds = int(float(time_str[4:]))
+
+                                # Parse date
+                                day = int(date_str[:2])
+                                month = int(date_str[2:4])
+                                year = 2000 + int(date_str[4:6])
+
+                                current_time = datetime(year, month, day, hours, minutes, seconds)
+                            except (ValueError, IndexError):
+                                continue
+
+                # Parse GSV messages for satellite data
+                elif sentence.startswith('$GPGSV') or sentence.startswith('$GNGSV') or sentence.startswith('$GLGSV') or sentence.startswith('$GAGSV') or sentence.startswith('$GBGSV'):
+                    if current_time is None:
+                        continue
+
+                    parts = sentence.split(',')
+                    if len(parts) < 4:
+                        continue
+
+                    # Determine constellation from talker ID
+                    talker = sentence[:6]
+                    if talker.startswith('$GPGSV'):
+                        gnss_id = 0  # GPS
+                    elif talker.startswith('$GLGSV'):
+                        gnss_id = 6  # GLONASS
+                    elif talker.startswith('$GAGSV'):
+                        gnss_id = 2  # Galileo
+                    elif talker.startswith('$GBGSV'):
+                        gnss_id = 3  # BeiDou
+                    elif talker.startswith('$GNGSV'):
+                        gnss_id = 0  # Mixed, assume GPS
+                    else:
+                        gnss_id = 0  # Default to GPS
+
+                    try:
+                        total_messages = int(parts[1])
+                        message_number = int(parts[2])
+                        total_satellites = int(parts[3])
+
+                        # Parse satellite information (4 satellites max per message)
+                        sat_start_idx = 4
+                        for i in range(4):  # Up to 4 satellites per GSV message
+                            base_idx = sat_start_idx + (i * 4)
+                            if base_idx + 3 >= len(parts):
+                                break
+
+                            sat_id_str = parts[base_idx]
+                            elevation_str = parts[base_idx + 1]
+                            azimuth_str = parts[base_idx + 2]
+                            snr_str = parts[base_idx + 3]
+
+                            # Remove checksum from last field if present
+                            if '*' in snr_str:
+                                snr_str = snr_str.split('*')[0]
+
+                            if sat_id_str and snr_str and snr_str != '':
+                                try:
+                                    sat_id = int(sat_id_str)
+                                    snr = int(snr_str)
+
+                                    if snr > 0:  # Valid SNR
+                                        sat_identifier = get_satellite_id(gnss_id, sat_id)
+                                        satellite_data[sat_identifier].append((current_time, snr))
+
+                                        if current_time not in timestamps:
+                                            timestamps.append(current_time)
+
+                                except ValueError:
+                                    continue
+
+                    except (ValueError, IndexError):
+                        continue
+
+            except UnicodeDecodeError:
+                continue
+
+    except Exception as e:
+        print(f"Error parsing NMEA data: {e}")
+        return [], {}
+
+    print(f"NMEA parsing found {len(satellite_data)} satellites with SNR data")
+    return sorted(set(timestamps)), dict(satellite_data)
+
 def parse_ubx_file(filename):
     """
     Parse UBX file and extract satellite signal level data using pyubx2.
     Supports both NAV-SAT and NAV-SVINFO messages.
+    Falls back to NMEA parsing if no UBX satellite data is found.
 
     Args:
         filename (str): Path to the UBX file
@@ -241,7 +374,7 @@ def parse_ubx_file(filename):
                 if message_count % 1000 == 0:
                     print(f"Processed {message_count} messages...")
 
-        print(f"Parsing complete:")
+        print(f"UBX parsing complete:")
         print(f"  Total messages: {message_count}")
         print(f"  Parse errors: {parse_errors}")
         print(f"  NAV-PVT messages: {nav_pvt_count}")
@@ -256,7 +389,12 @@ def parse_ubx_file(filename):
         elif nav_svinfo_count > 0:
             print(f"  Primary format: NAV-SVINFO (legacy)")
         else:
-            print(f"  Warning: No satellite data messages found")
+            print(f"  Warning: No UBX satellite data messages found")
+
+        # If no satellite data found in UBX messages, try NMEA fallback
+        if not satellite_data:
+            print("No satellite data found in UBX messages, trying NMEA fallback...")
+            return parse_nmea_satellite_data(filename)
 
         return sorted(set(timestamps)), dict(satellite_data)
 
@@ -403,7 +541,7 @@ def plot_signal_data(timestamps, satellite_data, title="Satellite Signal Levels 
     # Add statistics with signal quality assessment
     stats_text = f"Satellites: {len(satellite_data)}\n"
     if constellation_filter:
-        stats_text += f"Constellations: {', '.join(constellation_filter)}\n"
+        stats_text += f"Constellations: {', '.join(args.constellation)}\n"
     else:
         stats_text += f"Constellations: {len(constellation_sats)}\n"
 
@@ -448,7 +586,7 @@ def plot_signal_data(timestamps, satellite_data, title="Satellite Signal Levels 
 def main():
     """Main function to handle command line arguments and execute visualization."""
     parser = argparse.ArgumentParser(
-        description='Parse UBX files and visualize satellite signal levels over time using pyubx2',
+        description='Parse UBX files and visualize satellite signal levels over time using pyubx2. Falls back to NMEA parsing if no UBX satellite data found.',
         epilog='''
 Examples:
   %(prog)s gps_data.ubx
@@ -477,7 +615,7 @@ Examples:
 
     parser.add_argument('--version',
                        action='version',
-                       version='UBX Signal Level Analyzer 2.0.0 (pyubx2)')
+                       version='UBX Signal Level Analyzer 2.1.0 (pyubx2 + NMEA fallback)')
 
     args = parser.parse_args()
 
@@ -494,7 +632,7 @@ Examples:
     timestamps, satellite_data = parse_ubx_file(args.ubx_file)
 
     if not satellite_data:
-        print("No satellite signal data found in UBX file.")
+        print("No satellite signal data found in file.")
         sys.exit(1)
 
     print(f"Found signal data for {len(satellite_data)} satellites")

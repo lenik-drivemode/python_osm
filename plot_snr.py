@@ -42,6 +42,7 @@ def get_satellite_id(gnss_id, sv_id):
 def parse_ubx_file(filename):
     """
     Parse UBX file and extract satellite signal level data using pyubx2.
+    Supports both NAV-SAT and NAV-SVINFO messages.
 
     Args:
         filename (str): Path to the UBX file
@@ -62,6 +63,7 @@ def parse_ubx_file(filename):
 
             message_count = 0
             nav_sat_count = 0
+            nav_svinfo_count = 0
             nav_pvt_count = 0
             parse_errors = 0
 
@@ -123,13 +125,11 @@ def parse_ubx_file(filename):
                             timestamp = base_time + timedelta(seconds=time_diff)
 
                     if timestamp:
-                        # Extract satellite data
+                        # Extract satellite data from NAV-SAT
                         for i in range(1, num_sats + 1):
                             gnss_id_attr = f'gnssId_{i:02d}'
                             sv_id_attr = f'svId_{i:02d}'
                             cno_attr = f'cno_{i:02d}'
-                            # Look for signal strength attributes
-                            pr_res_attr = f'prRes_{i:02d}'  # Pseudorange residual
                             quality_attr = f'qualityInd_{i:02d}'  # Quality indicator
 
                             if (hasattr(parsed_data, gnss_id_attr) and
@@ -140,21 +140,100 @@ def parse_ubx_file(filename):
                                 sv_id = getattr(parsed_data, sv_id_attr)
                                 cno = getattr(parsed_data, cno_attr)  # C/N0 in dB-Hz (signal level)
 
-                                # Get additional signal quality metrics if available
-                                signal_level = cno  # Default to C/N0
-
                                 # Try to get quality indicator for better signal assessment
                                 if hasattr(parsed_data, quality_attr):
                                     quality = getattr(parsed_data, quality_attr)
                                     # Quality indicator: 0=no signal, 1-4=increasing quality
-                                    # We can use this to adjust signal level interpretation
                                     if quality == 0:
                                         continue  # Skip satellites with no signal
 
                                 # Only include satellites with valid signal level
-                                if signal_level > 0:
+                                if cno > 0:
                                     sat_id = get_satellite_id(gnss_id, sv_id)
-                                    satellite_data[sat_id].append((timestamp, signal_level))
+                                    satellite_data[sat_id].append((timestamp, cno))
+
+                                    if timestamp not in timestamps:
+                                        timestamps.append(timestamp)
+
+                # Process NAV-SVINFO messages for satellite data (older format)
+                elif hasattr(parsed_data, 'identity') and parsed_data.identity == 'NAV-SVINFO':
+                    nav_svinfo_count += 1
+
+                    if not hasattr(parsed_data, 'iTOW') or not hasattr(parsed_data, 'numCh'):
+                        continue
+
+                    iTOW = parsed_data.iTOW
+                    num_channels = parsed_data.numCh
+
+                    # Find closest time reference
+                    timestamp = None
+                    if iTOW in current_time_ref:
+                        timestamp = current_time_ref[iTOW]
+                    else:
+                        # Find closest iTOW
+                        closest_iTOW = None
+                        min_diff = float('inf')
+                        for ref_iTOW in current_time_ref:
+                            diff = abs(iTOW - ref_iTOW)
+                            if diff < min_diff and diff < 10000:  # Within 10 seconds
+                                min_diff = diff
+                                closest_iTOW = ref_iTOW
+
+                        if closest_iTOW is not None:
+                            # Interpolate timestamp
+                            base_time = current_time_ref[closest_iTOW]
+                            time_diff = (iTOW - closest_iTOW) / 1000.0  # Convert ms to seconds
+                            timestamp = base_time + timedelta(seconds=time_diff)
+
+                    if timestamp:
+                        # Extract satellite data from NAV-SVINFO
+                        for i in range(1, num_channels + 1):
+                            chn_attr = f'chn_{i:02d}'  # Channel number
+                            svid_attr = f'svid_{i:02d}'  # Satellite ID
+                            flags_attr = f'flags_{i:02d}'  # Flags
+                            quality_attr = f'quality_{i:02d}'  # Quality
+                            cno_attr = f'cno_{i:02d}'  # Signal strength
+
+                            if (hasattr(parsed_data, svid_attr) and
+                                hasattr(parsed_data, cno_attr) and
+                                hasattr(parsed_data, flags_attr)):
+
+                                sv_id = getattr(parsed_data, svid_attr)
+                                cno = getattr(parsed_data, cno_attr)  # Signal strength in dB-Hz
+                                flags = getattr(parsed_data, flags_attr)
+
+                                # Get quality if available
+                                quality = 1  # Default quality
+                                if hasattr(parsed_data, quality_attr):
+                                    quality = getattr(parsed_data, quality_attr)
+
+                                # Extract GNSS constellation from satellite ID and flags
+                                # NAV-SVINFO uses different satellite ID ranges for different constellations
+                                if sv_id >= 1 and sv_id <= 32:
+                                    gnss_id = 0  # GPS
+                                elif sv_id >= 65 and sv_id <= 96:
+                                    gnss_id = 6  # GLONASS
+                                    sv_id = sv_id - 64  # Normalize GLONASS ID
+                                elif sv_id >= 120 and sv_id <= 158:
+                                    gnss_id = 1  # SBAS
+                                elif sv_id >= 193 and sv_id <= 197:
+                                    gnss_id = 5  # QZSS
+                                elif sv_id >= 201 and sv_id <= 235:
+                                    gnss_id = 3  # BeiDou
+                                elif sv_id >= 301 and sv_id <= 336:
+                                    gnss_id = 2  # Galileo
+                                    sv_id = sv_id - 300  # Normalize Galileo ID
+                                else:
+                                    # Unknown satellite, assign to GPS for compatibility
+                                    gnss_id = 0
+
+                                # Check if satellite is being tracked (bit 0 of flags)
+                                is_tracking = (flags & 0x01) != 0
+
+                                # Only include satellites that are being tracked with valid signal level
+                                if is_tracking and cno > 0 and quality > 0:
+                                    sat_id = get_satellite_id(gnss_id, sv_id)
+                                    satellite_data[sat_id].append((timestamp, cno))
 
                                     if timestamp not in timestamps:
                                         timestamps.append(timestamp)
@@ -167,8 +246,17 @@ def parse_ubx_file(filename):
         print(f"  Parse errors: {parse_errors}")
         print(f"  NAV-PVT messages: {nav_pvt_count}")
         print(f"  NAV-SAT messages: {nav_sat_count}")
+        print(f"  NAV-SVINFO messages: {nav_svinfo_count}")
         print(f"  Unique timestamps: {len(set(timestamps))}")
         print(f"  Satellites found: {len(satellite_data)}")
+
+        # Print which message format was primarily used
+        if nav_sat_count > nav_svinfo_count:
+            print(f"  Primary format: NAV-SAT (modern)")
+        elif nav_svinfo_count > 0:
+            print(f"  Primary format: NAV-SVINFO (legacy)")
+        else:
+            print(f"  Warning: No satellite data messages found")
 
         return sorted(set(timestamps)), dict(satellite_data)
 

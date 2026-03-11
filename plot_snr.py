@@ -453,7 +453,7 @@ def plot_signal_data(timestamps, satellite_data, title="Satellite Signal Levels 
         'SBAS': plt.cm.Greys
     }
 
-    # Plot each satellite
+    # Plot each satellite with line breaks for gaps > 30 seconds
     for constellation, sat_list in constellation_sats.items():
         if constellation in constellation_colors:
             colormap = constellation_colors[constellation]
@@ -469,8 +469,40 @@ def plot_signal_data(timestamps, satellite_data, title="Satellite Signal Levels 
             times, signal_levels = zip(*data_points)
             color = colors[i] if len(sat_list) > 1 else colors
 
-            ax.plot(times, signal_levels, 'o-', color=color, label=sat_id,
-                    linewidth=1, markersize=2, alpha=0.7)
+            # Split data into continuous segments where gaps are <= 30 seconds
+            segments = []
+            current_segment_times = []
+            current_segment_levels = []
+
+            for j, (time, level) in enumerate(data_points):
+                if (current_segment_times and
+                    (time - current_segment_times[-1]).total_seconds() > 30):
+                    # Gap > 30 seconds, save current segment and start new one
+                    if current_segment_times:
+                        segments.append((current_segment_times, current_segment_levels))
+                    current_segment_times = [time]
+                    current_segment_levels = [level]
+                else:
+                    # Continue current segment
+                    current_segment_times.append(time)
+                    current_segment_levels.append(level)
+
+            # Add the last segment
+            if current_segment_times:
+                segments.append((current_segment_times, current_segment_levels))
+
+            # Plot each continuous segment
+            for seg_idx, (seg_times, seg_levels) in enumerate(segments):
+                if len(seg_times) == 1:
+                    # Single point - plot as marker only
+                    ax.plot(seg_times, seg_levels, 'o', color=color,
+                           markersize=2, alpha=0.7,
+                           label=sat_id if seg_idx == 0 else None)
+                else:
+                    # Multiple points - plot as connected line
+                    ax.plot(seg_times, seg_levels, 'o-', color=color,
+                           linewidth=1, markersize=2, alpha=0.7,
+                           label=sat_id if seg_idx == 0 else None)
 
     # Customize the plot
     ax.set_xlabel('Time', fontsize=12)
@@ -541,7 +573,7 @@ def plot_signal_data(timestamps, satellite_data, title="Satellite Signal Levels 
     # Add statistics with signal quality assessment
     stats_text = f"Satellites: {len(satellite_data)}\n"
     if constellation_filter:
-        stats_text += f"Constellations: {', '.join(args.constellation)}\n"
+        stats_text += f"Constellations: {', '.join(constellation_filter)}\n"
     else:
         stats_text += f"Constellations: {len(constellation_sats)}\n"
 

@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 # -*- coding: utf-8 -*-
 
 """KML Converter
@@ -46,7 +46,8 @@ class LocationPointCreator:
     def add_new_point(self, folder: Container, row) -> Container:
         latitude = float(row["latitude"])
         longitude = float(row["longitude"])
-        timestamp = datetime.fromisoformat(row['timestamp'].replace(' ', 'T', 1).replace(' UTC', 'Z'))
+#        timestamp = datetime.fromisoformat(row['timestamp'].replace(' ', 'T', 1).replace(' UTC', 'Z'))
+        timestamp = datetime.fromisoformat(row['timestamp'].replace(' UTC', '').split('.')[0])
         timestamp_formatted = timestamp.strftime('%Y-%m-%dT%H:%M:%S.%fZ')
         point = folder.newpoint(name=timestamp_formatted, coords=[(longitude, latitude)])
         point.timestamp.when = timestamp_formatted
@@ -229,7 +230,8 @@ class KMLConverter:
             longitude = float(row["longitude"])
             altitude = float(row["altitude_meters"]) if row["altitude_meters"] else 0.0
 
-            timestamp = datetime.fromisoformat(row['timestamp'].replace(' ', 'T', 1).replace(' UTC', 'Z'))
+#            timestamp = datetime.fromisoformat(row['timestamp'].replace(' ', 'T', 1).replace(' UTC', 'Z'))
+            timestamp = datetime.fromisoformat(row['timestamp'].replace(' UTC', '').split('.')[0])
             timestamp_formatted = timestamp.strftime('%Y-%m-%dT%H:%M:%S.%fZ')
 
             # Convert timestamp to UTC milliseconds for index.js

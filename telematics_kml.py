@@ -216,8 +216,13 @@ class KMLConverter:
             # Sort points by timestamp
             points.sort(key=lambda x: x['timestamp'])
 
-            placemark_xml = self._create_placemark_with_track(source, points)
-            placemarks.append(placemark_xml)
+            # Create track placemark
+            # placemark_xml = self._create_placemark_with_track(source, points)
+            # placemarks.append(placemark_xml)
+
+            # Create individual point markers
+            # point_markers = self._create_point_markers(source, points)
+            # placemarks.extend(point_markers)
 
         placemarks_content = '\n'.join(placemarks)
 
@@ -357,6 +362,38 @@ class KMLConverter:
 {extended_data_xml}
 </gx:Track>
 </Placemark>'''
+
+    def _create_point_markers(self, source, points):
+        """Create individual point markers for each GPS point"""
+        point_placemarks = []
+
+        # Map source names to style
+        if source == "corrected":
+            style_url = "#gnss_style"
+        elif source == "mapbox":
+            style_url = "#mapbox_style"
+        else:
+            style_url = "#corrected_style"
+
+        # Create a point marker for every 5th point to avoid clutter
+        for i, row in enumerate(points):
+            if i % 5 == 0:  # Show every 5th point
+                latitude = float(row["latitude"])
+                longitude = float(row["longitude"])
+                altitude = float(row["altitude_meters"]) if row["altitude_meters"] else 0.0
+
+                timestamp = datetime.fromisoformat(row['timestamp'].replace(' UTC', '').split('.')[0])
+                timestamp_formatted = timestamp.strftime('%Y-%m-%dT%H:%M:%S')
+
+                point_xml = f'''<Placemark>
+<styleUrl>{style_url}</styleUrl>
+<Point>
+<coordinates>{longitude},{latitude},{altitude}</coordinates>
+</Point>
+</Placemark>'''
+                point_placemarks.append(point_xml)
+
+        return point_placemarks
 
 if __name__ == "__main__":
     kml_converter = KMLConverter()

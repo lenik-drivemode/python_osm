@@ -172,18 +172,39 @@ class KMLConverter:
 <color>b30000ff</color>
 <width>3</width>
 </LineStyle>
+<IconStyle>
+<color>b30000ff</color>
+<scale>0.4</scale>
+<Icon>
+<href>http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png</href>
+</Icon>
+</IconStyle>
 </Style>
 <Style id="gnss_style">
 <LineStyle>
 <color>b300ff00</color>
 <width>3</width>
 </LineStyle>
+<IconStyle>
+<color>b300ff00</color>
+<scale>0.4</scale>
+<Icon>
+<href>http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png</href>
+</Icon>
+</IconStyle>
 </Style>
 <Style id="corrected_style">
 <LineStyle>
 <color>b3ff0000</color>
 <width>3</width>
 </LineStyle>
+<IconStyle>
+<color>b3ff0000</color>
+<scale>0.4</scale>
+<Icon>
+<href>http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png</href>
+</Icon>
+</IconStyle>
 </Style>'''
 
         placemarks = []

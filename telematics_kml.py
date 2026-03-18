@@ -153,12 +153,13 @@ class KMLConverter:
                 max_timestamp = max(max_timestamp, timestamp) if max_timestamp else timestamp
 
         # Generate KML directly as string
-        basename = self.input_file.split(".")[0]
-        timestr = time.strftime("%Y%m%d%H%M%S")
+        basename = self.input_file.rsplit(".", 1)[0]
+        timestr = time.strftime("%Y%m%d_%H%M%S")
         output_file = f"{basename}_{timestr}.kml"
 
         kml_content = self._generate_kml_with_tracks(tracks_data, min_timestamp, max_timestamp)
 
+        print(f"Saving KML file to {output_file}...")
         with open(output_file, 'w', encoding='utf-8') as f:
             f.write(kml_content)
 
@@ -168,19 +169,19 @@ class KMLConverter:
         # Define styles for different track types
         styles_xml = '''<Style id="mapbox_style">
 <LineStyle>
-<color>ff0000ff</color>
+<color>b30000ff</color>
 <width>3</width>
 </LineStyle>
 </Style>
 <Style id="gnss_style">
 <LineStyle>
-<color>ff00ff00</color>
+<color>b300ff00</color>
 <width>3</width>
 </LineStyle>
 </Style>
 <Style id="corrected_style">
 <LineStyle>
-<color>ffff0000</color>
+<color>b3ff0000</color>
 <width>3</width>
 </LineStyle>
 </Style>'''

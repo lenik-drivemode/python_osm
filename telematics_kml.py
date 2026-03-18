@@ -165,6 +165,26 @@ class KMLConverter:
     def _generate_kml_with_tracks(self, tracks_data, min_timestamp, max_timestamp):
         """Generate complete KML content with gx:Track elements"""
 
+        # Define styles for different track types
+        styles_xml = '''<Style id="mapbox_style">
+<LineStyle>
+<color>ff0000ff</color>
+<width>3</width>
+</LineStyle>
+</Style>
+<Style id="gnss_style">
+<LineStyle>
+<color>ff00ff00</color>
+<width>3</width>
+</LineStyle>
+</Style>
+<Style id="corrected_style">
+<LineStyle>
+<color>ffff0000</color>
+<width>3</width>
+</LineStyle>
+</Style>'''
+
         placemarks = []
 
         for track_key, track_info in tracks_data.items():
@@ -183,6 +203,7 @@ class KMLConverter:
 <kml xmlns="http://www.opengis.net/kml/2.2" xmlns:gx="http://www.google.com/kml/ext/2.2">
 <Document>
 <name>{min_timestamp} - {max_timestamp}</name>
+{styles_xml}
 {placemarks_content}
 </Document>
 </kml>'''
@@ -193,8 +214,16 @@ class KMLConverter:
         coord_elements = []
         extended_data_arrays = {}
 
-        # Map source names to what index.js expects
-        display_name = "gnss" if source == "corrected" else "mapbox"
+        # Map source names to what index.js expects and determine style
+        if source == "corrected":
+            display_name = "gnss"
+            style_url = "#gnss_style"
+        elif source == "mapbox":
+            display_name = "mapbox"
+            style_url = "#mapbox_style"
+        else:
+            display_name = source
+            style_url = "#corrected_style"
 
         # Define fields
         location_fields = [
@@ -299,6 +328,7 @@ class KMLConverter:
 
         return f'''<Placemark>
 <name>{display_name}</name>
+<styleUrl>{style_url}</styleUrl>
 <gx:Track>
 {when_xml}
 {coord_xml}

@@ -42,6 +42,8 @@ def parse_android_log_satellite_data(logd_folder):
             re.compile(r'(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})\.(\d{3})'),
             # Simple timestamp: HH:MM:SS.mmm
             re.compile(r'(\d{2}):(\d{2}):(\d{2})\.(\d{3})'),
+            # Laphroaig format: YYYY-MM-DD HH:MM:SS.mmmZ
+            re.compile(r'(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})'),
         ]
 
         current_date = datetime.now().date()  # Default to current date
@@ -90,6 +92,12 @@ def parse_android_log_satellite_data(logd_folder):
                                                 hour=int(hour), minute=int(minute),
                                                 second=int(second), microsecond=int(millisec)*1000
                                             )
+                                        )
+                                    elif len(groups) == 6 and len(groups[0]) == 4:  # YYYY-MM-DD format
+                                        year, month, day, hour, minute, second = groups
+                                        log_timestamp = datetime(
+                                            int(year), int(month), int(day),
+                                            int(hour), int(minute), int(second), 0
                                         )
                                     elif len(groups) == 7:  # YYYY-MM-DD format
                                         year, month, day, hour, minute, second, millisec = groups
@@ -232,6 +240,7 @@ def parse_nmea_satellite_data(nmea_file):
                 if not line:
                     continue
 
+                line = line.split(' ')[-1]
                 try:
                     # Parse different NMEA sentence types
                     if line.startswith('$GPGGA') or line.startswith('$GNGGA'):
@@ -451,7 +460,7 @@ def parse_kml_satellite_data(kml_file):
                 view_variation = np.random.randint(-2, 4)
                 use_variation = np.random.randint(-1, 2)
 
-                sats_view = max(4, min(12, base_sats_view + view_variation))
+                sats_view = max(4, min(40, base_sats_view + view_variation))
                 sats_use = max(3, min(sats_view, base_sats_use + use_variation))
 
                 satellites_in_view.append(sats_view)

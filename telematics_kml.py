@@ -384,7 +384,9 @@ class KMLConverter:
 
                 # Get bearing/heading for direction
                 bearing = row.get("bearing_degrees", "")
-                heading = float(bearing) if bearing and bearing != "" else 0.0
+                # Adjust heading - the arrow icon points north by default, so we use bearing directly
+                # But if arrows are pointing opposite, we need to add 180 degrees
+                heading = (float(bearing) + 180) % 360 if bearing and bearing != "" else 0.0
 
                 timestamp = datetime.fromisoformat(row['timestamp'].replace(' UTC', '').split('.')[0])
                 timestamp_formatted = timestamp.strftime('%Y-%m-%dT%H:%M:%S')

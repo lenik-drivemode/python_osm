@@ -166,7 +166,7 @@ class KMLConverter:
     def _generate_kml_with_tracks(self, tracks_data, min_timestamp, max_timestamp):
         """Generate complete KML content with gx:Track elements"""
 
-        # Define styles for different track types
+        # Define styles for different track types with directional arrows
         styles_xml = '''<Style id="mapbox_style">
 <LineStyle>
 <color>b30000ff</color>
@@ -174,9 +174,9 @@ class KMLConverter:
 </LineStyle>
 <IconStyle>
 <color>b30000ff</color>
-<scale>0.4</scale>
+<scale>0.6</scale>
 <Icon>
-<href>http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png</href>
+<href>http://maps.google.com/mapfiles/kml/shapes/arrow.png</href>
 </Icon>
 </IconStyle>
 </Style>
@@ -187,9 +187,9 @@ class KMLConverter:
 </LineStyle>
 <IconStyle>
 <color>b300ff00</color>
-<scale>0.4</scale>
+<scale>0.6</scale>
 <Icon>
-<href>http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png</href>
+<href>http://maps.google.com/mapfiles/kml/shapes/arrow.png</href>
 </Icon>
 </IconStyle>
 </Style>
@@ -200,9 +200,9 @@ class KMLConverter:
 </LineStyle>
 <IconStyle>
 <color>b3ff0000</color>
-<scale>0.4</scale>
+<scale>0.6</scale>
 <Icon>
-<href>http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png</href>
+<href>http://maps.google.com/mapfiles/kml/shapes/arrow.png</href>
 </Icon>
 </IconStyle>
 </Style>'''
@@ -217,12 +217,12 @@ class KMLConverter:
             points.sort(key=lambda x: x['timestamp'])
 
             # Create track placemark
-            # placemark_xml = self._create_placemark_with_track(source, points)
-            # placemarks.append(placemark_xml)
+            placemark_xml = self._create_placemark_with_track(source, points)
+            placemarks.append(placemark_xml)
 
             # Create individual point markers
-            # point_markers = self._create_point_markers(source, points)
-            # placemarks.extend(point_markers)
+            point_markers = self._create_point_markers(source, points)
+            placemarks.extend(point_markers)
 
         placemarks_content = '\n'.join(placemarks)
 
@@ -364,7 +364,7 @@ class KMLConverter:
 </Placemark>'''
 
     def _create_point_markers(self, source, points):
-        """Create individual point markers for each GPS point"""
+        """Create individual point markers for each GPS point with directional arrows"""
         point_placemarks = []
 
         # Map source names to style
@@ -382,11 +382,27 @@ class KMLConverter:
                 longitude = float(row["longitude"])
                 altitude = float(row["altitude_meters"]) if row["altitude_meters"] else 0.0
 
+                # Get bearing/heading for direction
+                bearing = row.get("bearing_degrees", "")
+                heading = float(bearing) if bearing and bearing != "" else 0.0
+
                 timestamp = datetime.fromisoformat(row['timestamp'].replace(' UTC', '').split('.')[0])
                 timestamp_formatted = timestamp.strftime('%Y-%m-%dT%H:%M:%S')
 
+                # Create individual style for this point with rotation
+                point_style = f'''<Style>
+<IconStyle>
+<color>{"b300ff00" if source == "corrected" else "b30000ff" if source == "mapbox" else "b3ff0000"}</color>
+<scale>0.6</scale>
+<heading>{heading}</heading>
+<Icon>
+<href>http://maps.google.com/mapfiles/kml/shapes/arrow.png</href>
+</Icon>
+</IconStyle>
+</Style>'''
+
                 point_xml = f'''<Placemark>
-<styleUrl>{style_url}</styleUrl>
+{point_style}
 <Point>
 <coordinates>{longitude},{latitude},{altitude}</coordinates>
 </Point>

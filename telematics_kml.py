@@ -91,7 +91,10 @@ class KMLConverter:
     def __init__(self):
         parser = argparse.ArgumentParser("Script to convert telematics location CSV file into KML format.")
         parser.add_argument("input_file", help="Input CSV file")
-        self.input_file = parser.parse_args().input_file
+        parser.add_argument("--no-arrows", action="store_true", help="Disable directional arrow markers")
+        args = parser.parse_args()
+        self.input_file = args.input_file
+        self.show_arrows = not args.no_arrows
         self.folders_cache: Dict[FieldName: Dict[FolderName: Container]] = {}
         self.tracks_cache: Dict[str, Dict] = {}
 
@@ -220,9 +223,10 @@ class KMLConverter:
             placemark_xml = self._create_placemark_with_track(source, points)
             placemarks.append(placemark_xml)
 
-            # Create individual point markers
-            point_markers = self._create_point_markers(source, points)
-            placemarks.extend(point_markers)
+            # Create individual point markers only if arrows are enabled
+            if self.show_arrows:
+                point_markers = self._create_point_markers(source, points)
+                placemarks.extend(point_markers)
 
         placemarks_content = '\n'.join(placemarks)
 
